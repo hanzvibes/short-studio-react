@@ -125,3 +125,12 @@ waktu `caps`, lalu mux dengan ffmpeg. Butuh Chromium + ffmpeg + internet
   `<html>` — animasi UI tetap dimatikan lewat `prefers-reduced-motion`.
 - `studio/_audit.html` tidak di-port (alat audit internal, bukan bagian studio).
 - `studio/server.mjs` tidak diperlukan lagi — digantikan `next dev` / `next start`.
+- **Fix drawer 2026-11-17:** port awal lupa menyinkronkan `document.body`
+  class `drawer-open`/`drawer-closed` (vanilla `studio.js` melakukannya di
+  `drawer()`), hanya class di `div.app` yang tidak dipakai CSS mana pun —
+  akibatnya drawer tidak bisa dibuka di layar ≤1180px (tablet) dan tidak
+  bisa ditutup di layar lebar. Sekarang `useEffect` di `Studio.tsx`
+  menyinkronkan body class + `ss.drawer`; terverifikasi headless 390px
+  (klik ☰ → drawer muncul, x=4, visible) dan 1440px (klik ☰ → drawer
+  hilang, `display:none`). Bukti: `verification/drawer-mobile390-open.png`,
+  `verification/drawer-desktop1440-closed.png`.

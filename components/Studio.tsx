@@ -211,6 +211,22 @@ export default function Studio() {
     fitStage();
   }, [fitStage, drawerOpen, ready]);
 
+  // Drawer: CSS memakai body.drawer-open / body.drawer-closed (port dari
+  // studio.js vanilla). Tanpa ini, di layar <=1180px drawer tidak pernah
+  // muncul karena .media tetap translateX(-100%), dan di layar lebar
+  // menutup drawer tidak menyembunyikan panel. Sebelum fix ini, class
+  // hanya dipasang di div.app yang tidak dipakai selector CSS mana pun.
+  useEffect(() => {
+    document.body.classList.toggle("drawer-open", drawerOpen);
+    document.body.classList.toggle("drawer-closed", !drawerOpen);
+    if (window.innerWidth > 1180) {
+      try { localStorage.setItem("ss.drawer", drawerOpen ? "1" : "0"); } catch { /* private mode */ }
+    }
+    return () => {
+      document.body.classList.remove("drawer-open", "drawer-closed");
+    };
+  }, [drawerOpen]);
+
   useEffect(() => {
     const onResize = () => fitStage();
     window.addEventListener("resize", onResize);
