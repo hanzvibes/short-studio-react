@@ -1,0 +1,24 @@
+{
+  "info": {
+    "status": "Preview siap",
+    "statusInfo": "12 template · 0:30 · 10 shot · 8 caption",
+    "title": "Short Studio",
+    "tplCount": 12,
+    "shotClips": 10,
+    "capClips": 8,
+    "bridge": {
+      "ok": true,
+      "len": 30,
+      "shots": 10,
+      "caps": 8,
+      "t": 0
+    },
+    "canvas": {
+      "w": 282,
+      "h": 501,
+      "px": "webgl-context-ok"
+    }
+  },
+  "tAfter": 12.350000000000005,
+  "errors": []
+}

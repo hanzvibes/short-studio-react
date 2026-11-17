@@ -1,0 +1,71 @@
+[
+  {
+    "file": "template-perang.html",
+    "label": "Perang Sub Agent",
+    "kind": "34s",
+    "title": "Claude vs Codex",
+    "sub": "perang sub agent",
+    "end": "Kamu pilih pasukan siapa?"
+  },
+  {
+    "file": "template-code.html",
+    "label": "Adu Kode",
+    "kind": "30s",
+    "title": "Claude vs Codex",
+    "sub": "kode siapa yang paling bagus?",
+    "end": "Menurut kamu, kode siapa yang lebih enak dibaca?"
+  },
+  {
+    "file": "template-kuota.html",
+    "label": "Rebutan Kuota",
+    "kind": "34s",
+    "title": "Claude vs Codex",
+    "sub": "rebutan kuota token",
+    "end": "Kuotamu tinggal berapa?"
+  },
+  {
+    "file": "template-rival.html",
+    "label": "Musuhan Satu Meja",
+    "kind": "34s"
+  },
+  {
+    "file": "template-trio.html",
+    "label": "Claude vs Codex vs Gemini",
+    "kind": "32s"
+  },
+  {
+    "file": "template.html",
+    "label": "Versus",
+    "kind": "28s"
+  },
+  {
+    "file": "template-typing.html",
+    "label": "Mengetik (Claude × Remotion)",
+    "kind": "~30s"
+  },
+  {
+    "file": "template-deploy.html",
+    "label": "Deploy Jumat Sore",
+    "kind": "33s"
+  },
+  {
+    "file": "template-bughunter.html",
+    "label": "Bug Hunter 02.00",
+    "kind": "33s"
+  },
+  {
+    "file": "template-bomb.html",
+    "label": "Misi Mustahil: Merge Conflict",
+    "kind": "33s"
+  },
+  {
+    "file": "template-meeting.html",
+    "label": "Rapat 5 Menit",
+    "kind": "33s"
+  },
+  {
+    "file": "template-sleep.html",
+    "label": "Tidur di Keyboard",
+    "kind": "36s"
+  }
+]
