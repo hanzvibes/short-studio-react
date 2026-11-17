@@ -1,0 +1,1016 @@
+{
+  "captionBeforeApply": {
+    "disabled": false,
+    "status": "Siap diterapkan: caption."
+  },
+  "captionAfterApply": {
+    "disabled": true,
+    "status": "Tidak ada perubahan — ubah teks, caption, shot, atau props untuk mengaktifkan Terapkan."
+  },
+  "captionBridge": [
+    [
+      3,
+      6.2,
+      "VERIFIKASI NYX 123 — trio bersatu",
+      0
+    ],
+    [
+      6.2,
+      9.4,
+      "Rapi doang? Aku langsung eksekusi di terminal!",
+      1
+    ],
+    [
+      9.4,
+      12.6,
+      "Kalian lupa: konteksku sejuta token!",
+      2
+    ],
+    [
+      12.6,
+      15.6,
+      "Lihat papan skor, aku paling tinggi!",
+      0
+    ],
+    [
+      15.6,
+      18,
+      "Rabun, ya? Punyaku yang naik!",
+      1
+    ],
+    [
+      18,
+      20.4,
+      "Hitung ulang! Aku yang menang!",
+      2
+    ],
+    [
+      20.6,
+      23,
+      "Aduh… capek debat sama kalian…",
+      0
+    ],
+    [
+      23.2,
+      26,
+      "Tunggu… kok skornya sama semua?!",
+      1
+    ],
+    [
+      26.2,
+      29.4,
+      "Ya sudah, kita kerja bareng aja!",
+      2
+    ]
+  ],
+  "captionBridgeOk": true,
+  "captionAfterReclick": {
+    "disabled": true,
+    "status": "Tidak ada perubahan — ubah teks, caption, shot, atau props untuk mengaktifkan Terapkan."
+  },
+  "captionBridgeAfterReclick": [
+    [
+      3,
+      6.2,
+      "VERIFIKASI NYX 123 — trio bersatu",
+      0
+    ],
+    [
+      6.2,
+      9.4,
+      "Rapi doang? Aku langsung eksekusi di terminal!",
+      1
+    ],
+    [
+      9.4,
+      12.6,
+      "Kalian lupa: konteksku sejuta token!",
+      2
+    ],
+    [
+      12.6,
+      15.6,
+      "Lihat papan skor, aku paling tinggi!",
+      0
+    ],
+    [
+      15.6,
+      18,
+      "Rabun, ya? Punyaku yang naik!",
+      1
+    ],
+    [
+      18,
+      20.4,
+      "Hitung ulang! Aku yang menang!",
+      2
+    ],
+    [
+      20.6,
+      23,
+      "Aduh… capek debat sama kalian…",
+      0
+    ],
+    [
+      23.2,
+      26,
+      "Tunggu… kok skornya sama semua?!",
+      1
+    ],
+    [
+      26.2,
+      29.4,
+      "Ya sudah, kita kerja bareng aja!",
+      2
+    ]
+  ],
+  "editsAfterCaptionApply": {
+    "template-trio.html": {
+      "caps": [
+        [
+          3,
+          6.2,
+          "VERIFIKASI NYX 123 — trio bersatu",
+          0
+        ],
+        [
+          6.2,
+          9.4,
+          "Rapi doang? Aku langsung eksekusi di terminal!",
+          1
+        ],
+        [
+          9.4,
+          12.6,
+          "Kalian lupa: konteksku sejuta token!",
+          2
+        ],
+        [
+          12.6,
+          15.6,
+          "Lihat papan skor, aku paling tinggi!",
+          0
+        ],
+        [
+          15.6,
+          18,
+          "Rabun, ya? Punyaku yang naik!",
+          1
+        ],
+        [
+          18,
+          20.4,
+          "Hitung ulang! Aku yang menang!",
+          2
+        ],
+        [
+          20.6,
+          23,
+          "Aduh… capek debat sama kalian…",
+          0
+        ],
+        [
+          23.2,
+          26,
+          "Tunggu… kok skornya sama semua?!",
+          1
+        ],
+        [
+          26.2,
+          29.4,
+          "Ya sudah, kita kerja bareng aja!",
+          2
+        ]
+      ]
+    }
+  },
+  "shotTemplate": "Adu Kode · Short Studio",
+  "shotBeforeApply": {
+    "disabled": false,
+    "status": "Siap diterapkan: shot."
+  },
+  "shotAfterApply": {
+    "disabled": true,
+    "status": "Tidak ada perubahan — ubah teks, caption, shot, atau props untuk mengaktifkan Terapkan."
+  },
+  "shotBridge": [
+    [
+      0.5,
+      [
+        0,
+        2.2,
+        6.2
+      ],
+      [
+        0,
+        0.9,
+        0
+      ]
+    ],
+    [
+      3.1,
+      [
+        -1.45,
+        1.35,
+        4
+      ],
+      [
+        -1.6,
+        0.82,
+        0
+      ]
+    ],
+    [
+      6.3,
+      [
+        1.45,
+        1.35,
+        4
+      ],
+      [
+        1.6,
+        0.85,
+        0
+      ]
+    ],
+    [
+      9.4,
+      [
+        0,
+        1.55,
+        5.4
+      ],
+      [
+        0,
+        0.85,
+        0
+      ]
+    ],
+    [
+      12.8,
+      [
+        -0.3,
+        1.4,
+        5.7
+      ],
+      [
+        0,
+        0.85,
+        0
+      ]
+    ],
+    [
+      15.9,
+      [
+        0,
+        1.4,
+        5.8
+      ],
+      [
+        0,
+        0.85,
+        0
+      ]
+    ],
+    [
+      18.4,
+      [
+        -1.35,
+        1.25,
+        4.2
+      ],
+      [
+        -1.55,
+        0.85,
+        0
+      ]
+    ],
+    [
+      20.8,
+      [
+        1.35,
+        1.25,
+        4.2
+      ],
+      [
+        1.55,
+        0.85,
+        0
+      ]
+    ],
+    [
+      23,
+      [
+        0,
+        1.7,
+        6
+      ],
+      [
+        0,
+        0.95,
+        0
+      ]
+    ],
+    [
+      26.6,
+      [
+        0,
+        2,
+        6.6
+      ],
+      [
+        0,
+        0.9,
+        0
+      ]
+    ]
+  ],
+  "shotBridgeOk": true,
+  "editsAfterShotApply": {
+    "template-trio.html": {
+      "caps": [
+        [
+          3,
+          6.2,
+          "VERIFIKASI NYX 123 — trio bersatu",
+          0
+        ],
+        [
+          6.2,
+          9.4,
+          "Rapi doang? Aku langsung eksekusi di terminal!",
+          1
+        ],
+        [
+          9.4,
+          12.6,
+          "Kalian lupa: konteksku sejuta token!",
+          2
+        ],
+        [
+          12.6,
+          15.6,
+          "Lihat papan skor, aku paling tinggi!",
+          0
+        ],
+        [
+          15.6,
+          18,
+          "Rabun, ya? Punyaku yang naik!",
+          1
+        ],
+        [
+          18,
+          20.4,
+          "Hitung ulang! Aku yang menang!",
+          2
+        ],
+        [
+          20.6,
+          23,
+          "Aduh… capek debat sama kalian…",
+          0
+        ],
+        [
+          23.2,
+          26,
+          "Tunggu… kok skornya sama semua?!",
+          1
+        ],
+        [
+          26.2,
+          29.4,
+          "Ya sudah, kita kerja bareng aja!",
+          2
+        ]
+      ]
+    },
+    "template-code.html": {
+      "shots": [
+        [
+          0.5,
+          [
+            0,
+            2.2,
+            6.2
+          ],
+          [
+            0,
+            0.9,
+            0
+          ]
+        ],
+        [
+          3.1,
+          [
+            -1.45,
+            1.35,
+            4
+          ],
+          [
+            -1.6,
+            0.82,
+            0
+          ]
+        ],
+        [
+          6.3,
+          [
+            1.45,
+            1.35,
+            4
+          ],
+          [
+            1.6,
+            0.85,
+            0
+          ]
+        ],
+        [
+          9.4,
+          [
+            0,
+            1.55,
+            5.4
+          ],
+          [
+            0,
+            0.85,
+            0
+          ]
+        ],
+        [
+          12.8,
+          [
+            -0.3,
+            1.4,
+            5.7
+          ],
+          [
+            0,
+            0.85,
+            0
+          ]
+        ],
+        [
+          15.9,
+          [
+            0,
+            1.4,
+            5.8
+          ],
+          [
+            0,
+            0.85,
+            0
+          ]
+        ],
+        [
+          18.4,
+          [
+            -1.35,
+            1.25,
+            4.2
+          ],
+          [
+            -1.55,
+            0.85,
+            0
+          ]
+        ],
+        [
+          20.8,
+          [
+            1.35,
+            1.25,
+            4.2
+          ],
+          [
+            1.55,
+            0.85,
+            0
+          ]
+        ],
+        [
+          23,
+          [
+            0,
+            1.7,
+            6
+          ],
+          [
+            0,
+            0.95,
+            0
+          ]
+        ],
+        [
+          26.6,
+          [
+            0,
+            2,
+            6.6
+          ],
+          [
+            0,
+            0.9,
+            0
+          ]
+        ]
+      ]
+    }
+  },
+  "propsTemplate": "Claude vs Codex vs Gemini · Short Studio",
+  "propInput": {
+    "tag": "INPUT",
+    "type": "number",
+    "aria": "Claude · posisi X",
+    "value": "-2.6",
+    "id": ""
+  },
+  "propsBeforeApply": {
+    "disabled": false,
+    "status": "Siap diterapkan: props."
+  },
+  "propsAfterApply": {
+    "disabled": true,
+    "status": "Tidak ada perubahan — ubah teks, caption, shot, atau props untuk mengaktifkan Terapkan."
+  },
+  "editsAfterSwitch": {
+    "template-trio.html": {
+      "caps": [
+        [
+          3,
+          6.2,
+          "VERIFIKASI NYX 123 — trio bersatu",
+          0
+        ],
+        [
+          6.2,
+          9.4,
+          "Rapi doang? Aku langsung eksekusi di terminal!",
+          1
+        ],
+        [
+          9.4,
+          12.6,
+          "Kalian lupa: konteksku sejuta token!",
+          2
+        ],
+        [
+          12.6,
+          15.6,
+          "Lihat papan skor, aku paling tinggi!",
+          0
+        ],
+        [
+          15.6,
+          18,
+          "Rabun, ya? Punyaku yang naik!",
+          1
+        ],
+        [
+          18,
+          20.4,
+          "Hitung ulang! Aku yang menang!",
+          2
+        ],
+        [
+          20.6,
+          23,
+          "Aduh… capek debat sama kalian…",
+          0
+        ],
+        [
+          23.2,
+          26,
+          "Tunggu… kok skornya sama semua?!",
+          1
+        ],
+        [
+          26.2,
+          29.4,
+          "Ya sudah, kita kerja bareng aja!",
+          2
+        ]
+      ],
+      "props": {
+        "claude.x": -1.6,
+        "codex.x": 0,
+        "gemini.x": 2.6,
+        "codex.scale": 0.85,
+        "gemini.scale": 0.85,
+        "claude.color": "#d97757",
+        "codex.color": "#7b8cff",
+        "gemini.color": "#b794f6",
+        "board.y": 4.7,
+        "monitor.claude.x": -2.6,
+        "monitor.codex.x": 0,
+        "monitor.gemini.x": 2.6
+      }
+    },
+    "template-code.html": {
+      "shots": [
+        [
+          0.5,
+          [
+            0,
+            2.2,
+            6.2
+          ],
+          [
+            0,
+            0.9,
+            0
+          ]
+        ],
+        [
+          3.1,
+          [
+            -1.45,
+            1.35,
+            4
+          ],
+          [
+            -1.6,
+            0.82,
+            0
+          ]
+        ],
+        [
+          6.3,
+          [
+            1.45,
+            1.35,
+            4
+          ],
+          [
+            1.6,
+            0.85,
+            0
+          ]
+        ],
+        [
+          9.4,
+          [
+            0,
+            1.55,
+            5.4
+          ],
+          [
+            0,
+            0.85,
+            0
+          ]
+        ],
+        [
+          12.8,
+          [
+            -0.3,
+            1.4,
+            5.7
+          ],
+          [
+            0,
+            0.85,
+            0
+          ]
+        ],
+        [
+          15.9,
+          [
+            0,
+            1.4,
+            5.8
+          ],
+          [
+            0,
+            0.85,
+            0
+          ]
+        ],
+        [
+          18.4,
+          [
+            -1.35,
+            1.25,
+            4.2
+          ],
+          [
+            -1.55,
+            0.85,
+            0
+          ]
+        ],
+        [
+          20.8,
+          [
+            1.35,
+            1.25,
+            4.2
+          ],
+          [
+            1.55,
+            0.85,
+            0
+          ]
+        ],
+        [
+          23,
+          [
+            0,
+            1.7,
+            6
+          ],
+          [
+            0,
+            0.95,
+            0
+          ]
+        ],
+        [
+          26.6,
+          [
+            0,
+            2,
+            6.6
+          ],
+          [
+            0,
+            0.9,
+            0
+          ]
+        ]
+      ]
+    }
+  },
+  "roundTripMid": "Adu Kode · Short Studio",
+  "roundTripBack": "Claude vs Codex vs Gemini · Short Studio",
+  "capsAfterRoundTrip": [
+    [
+      3,
+      6.2,
+      "VERIFIKASI NYX 123 — trio bersatu",
+      0
+    ],
+    [
+      6.2,
+      9.4,
+      "Rapi doang? Aku langsung eksekusi di terminal!",
+      1
+    ],
+    [
+      9.4,
+      12.6,
+      "Kalian lupa: konteksku sejuta token!",
+      2
+    ],
+    [
+      12.6,
+      15.6,
+      "Lihat papan skor, aku paling tinggi!",
+      0
+    ],
+    [
+      15.6,
+      18,
+      "Rabun, ya? Punyaku yang naik!",
+      1
+    ],
+    [
+      18,
+      20.4,
+      "Hitung ulang! Aku yang menang!",
+      2
+    ],
+    [
+      20.6,
+      23,
+      "Aduh… capek debat sama kalian…",
+      0
+    ],
+    [
+      23.2,
+      26,
+      "Tunggu… kok skornya sama semua?!",
+      1
+    ],
+    [
+      26.2,
+      29.4,
+      "Ya sudah, kita kerja bareng aja!",
+      2
+    ]
+  ],
+  "persistOk": true,
+  "editsAfterRoundTrip": {
+    "template-trio.html": {
+      "caps": [
+        [
+          3,
+          6.2,
+          "VERIFIKASI NYX 123 — trio bersatu",
+          0
+        ],
+        [
+          6.2,
+          9.4,
+          "Rapi doang? Aku langsung eksekusi di terminal!",
+          1
+        ],
+        [
+          9.4,
+          12.6,
+          "Kalian lupa: konteksku sejuta token!",
+          2
+        ],
+        [
+          12.6,
+          15.6,
+          "Lihat papan skor, aku paling tinggi!",
+          0
+        ],
+        [
+          15.6,
+          18,
+          "Rabun, ya? Punyaku yang naik!",
+          1
+        ],
+        [
+          18,
+          20.4,
+          "Hitung ulang! Aku yang menang!",
+          2
+        ],
+        [
+          20.6,
+          23,
+          "Aduh… capek debat sama kalian…",
+          0
+        ],
+        [
+          23.2,
+          26,
+          "Tunggu… kok skornya sama semua?!",
+          1
+        ],
+        [
+          26.2,
+          29.4,
+          "Ya sudah, kita kerja bareng aja!",
+          2
+        ]
+      ],
+      "props": {
+        "claude.x": -1.6,
+        "codex.x": 0,
+        "gemini.x": 2.6,
+        "codex.scale": 0.85,
+        "gemini.scale": 0.85,
+        "claude.color": "#d97757",
+        "codex.color": "#7b8cff",
+        "gemini.color": "#b794f6",
+        "board.y": 4.7,
+        "monitor.claude.x": -2.6,
+        "monitor.codex.x": 0,
+        "monitor.gemini.x": 2.6
+      }
+    },
+    "template-code.html": {
+      "shots": [
+        [
+          0.5,
+          [
+            0,
+            2.2,
+            6.2
+          ],
+          [
+            0,
+            0.9,
+            0
+          ]
+        ],
+        [
+          3.1,
+          [
+            -1.45,
+            1.35,
+            4
+          ],
+          [
+            -1.6,
+            0.82,
+            0
+          ]
+        ],
+        [
+          6.3,
+          [
+            1.45,
+            1.35,
+            4
+          ],
+          [
+            1.6,
+            0.85,
+            0
+          ]
+        ],
+        [
+          9.4,
+          [
+            0,
+            1.55,
+            5.4
+          ],
+          [
+            0,
+            0.85,
+            0
+          ]
+        ],
+        [
+          12.8,
+          [
+            -0.3,
+            1.4,
+            5.7
+          ],
+          [
+            0,
+            0.85,
+            0
+          ]
+        ],
+        [
+          15.9,
+          [
+            0,
+            1.4,
+            5.8
+          ],
+          [
+            0,
+            0.85,
+            0
+          ]
+        ],
+        [
+          18.4,
+          [
+            -1.35,
+            1.25,
+            4.2
+          ],
+          [
+            -1.55,
+            0.85,
+            0
+          ]
+        ],
+        [
+          20.8,
+          [
+            1.35,
+            1.25,
+            4.2
+          ],
+          [
+            1.55,
+            0.85,
+            0
+          ]
+        ],
+        [
+          23,
+          [
+            0,
+            1.7,
+            6
+          ],
+          [
+            0,
+            0.95,
+            0
+          ]
+        ],
+        [
+          26.6,
+          [
+            0,
+            2,
+            6.6
+          ],
+          [
+            0,
+            0.9,
+            0
+          ]
+        ]
+      ]
+    }
+  },
+  "consoleErrors": []
+}
+VERIFY DONE

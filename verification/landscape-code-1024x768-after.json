@@ -1,0 +1,203 @@
+{
+  "tag": "code-1024x768-after",
+  "width": 1024,
+  "height": 768,
+  "errors": [],
+  "vw": 1024,
+  "vh": 768,
+  "stage": {
+    "x": 265,
+    "y": 112,
+    "w": 190,
+    "h": 337
+  },
+  "stageStyle": {
+    "w": "190px",
+    "h": "337px"
+  },
+  "iframe": {
+    "x": 265,
+    "y": 112,
+    "w": 190,
+    "h": 337
+  },
+  "viewerBody": {
+    "x": 6,
+    "y": 98,
+    "w": 707,
+    "h": 365
+  },
+  "viewer": {
+    "x": 5,
+    "y": 53,
+    "w": 709,
+    "h": 491
+  },
+  "timeline": {
+    "x": 5,
+    "y": 549,
+    "w": 709,
+    "h": 186
+  },
+  "inspector": {
+    "x": 719,
+    "y": 53,
+    "w": 300,
+    "h": 682
+  },
+  "panes": {
+    "x": 720,
+    "y": 109,
+    "w": 298,
+    "h": 598
+  },
+  "applyDisabled": true,
+  "applyState": "Tidak ada perubahan — ubah teks, caption, shot, atau props untuk mengaktifkan Terapkan.",
+  "applyText": "Terapkan semua edit",
+  "saveBtn": {
+    "x": 727,
+    "y": 438,
+    "w": 284,
+    "h": 44,
+    "bottom": 482,
+    "visible": true
+  },
+  "bigplay": {
+    "w": 54,
+    "h": 54
+  },
+  "tlH": "186px",
+  "clips": [
+    {
+      "w": 59,
+      "label": "Shot 1",
+      "full": "Shot 10 · 2.2 · 6.23.1s",
+      "title": "Shot 1 · 0:00"
+    },
+    {
+      "w": 61,
+      "label": "Shot 2",
+      "full": "Shot 2-1.45 · 1.35 · 43.2s",
+      "title": "Shot 2 · 0:03"
+    },
+    {
+      "w": 59,
+      "label": "Shot 3",
+      "full": "Shot 31.45 · 1.35 · 43.1s",
+      "title": "Shot 3 · 0:06"
+    },
+    {
+      "w": 65,
+      "label": "Shot 4",
+      "full": "Shot 40 · 1.55 · 5.43.4s",
+      "title": "Shot 4 · 0:09"
+    },
+    {
+      "w": 59,
+      "label": "Shot 5",
+      "full": "Shot 5-0.3 · 1.4 · 5.73.1s",
+      "title": "Shot 5 · 0:12"
+    },
+    {
+      "w": 48,
+      "label": "Shot 6",
+      "full": "Shot 60 · 1.4 · 5.82.5s",
+      "title": "Shot 6 · 0:15"
+    },
+    {
+      "w": 46,
+      "label": "Shot 7",
+      "full": "Shot 7-1.35 · 1.25 · 4.22.4s",
+      "title": "Shot 7 · 0:18"
+    },
+    {
+      "w": 42,
+      "label": "8",
+      "full": "81.35 · 1.25 · 4.22.2s",
+      "title": "Shot 8 · 0:20"
+    },
+    {
+      "w": 69,
+      "label": "Shot 9",
+      "full": "Shot 90 · 1.7 · 63.6s",
+      "title": "Shot 9 · 0:23"
+    },
+    {
+      "w": 65,
+      "label": "Shot 10",
+      "full": "Shot 100 · 2 · 6.63.4s",
+      "title": "Shot 10 · 0:26"
+    }
+  ],
+  "capClips": [
+    {
+      "w": 58,
+      "text": "Kodeku rapi. Satu fungsi, satu"
+    },
+    {
+      "w": 58,
+      "text": "Rapi doang? Punyaku lulus 50 t"
+    },
+    {
+      "w": 54,
+      "text": "Tes banyak, arsitekturmu spage"
+    },
+    {
+      "w": 54,
+      "text": "Arsitektur tanpa tes itu cuma "
+    },
+    {
+      "w": 46,
+      "text": "Eh, kodenya error bareng?!"
+    },
+    {
+      "w": 46,
+      "text": "Kasus user kosong, kita lupa."
+    },
+    {
+      "w": 35,
+      "text": "Satu baris tambahan, beres."
+    },
+    {
+      "w": 58,
+      "text": "Kode terbaik itu hasil gabunga"
+    }
+  ],
+  "tabs": [
+    {
+      "label": "Teks",
+      "w": 71,
+      "h": 44,
+      "y": 59
+    },
+    {
+      "label": "Shot10",
+      "w": 71,
+      "h": 44,
+      "y": 59
+    },
+    {
+      "label": "Caption8",
+      "w": 71,
+      "h": 44,
+      "y": 59
+    },
+    {
+      "label": "Props12",
+      "w": 71,
+      "h": 44,
+      "y": 59
+    }
+  ],
+  "metaVisible": true,
+  "docScrollW": 1024,
+  "overflowX": false,
+  "focusView": false,
+  "tlContentW": 575,
+  "tlScrollW": 575,
+  "tlScrollH": 575,
+  "template": "Adu Kode",
+  "status": "Preview siap",
+  "drawerClosed": true,
+  "bodyClass": "drawer-closed"
+}

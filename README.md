@@ -264,3 +264,35 @@ waktu `caps`, lalu mux dengan ffmpeg. Butuh Chromium + ffmpeg + internet
   non-modal) diberi `z-index:80` supaya tidak tertutup konten workspace
   yang di-scroll. Template asli tidak disentuh; `npm run build` hijau;
   0 console error di semua run verifikasi.
+- **Perbaikan landscape 2026-11-17** (menindaklanjuti audit
+  `verification/landscape-audit-2026-11-17.md` + screenshot tablet Rehan
+  1024×540; laporan + bukti screenshot:
+  `verification/landscape-fix-2026-11-17.md`): akar masalah stage kecil
+  BUKAN rumus `fitStage` (matematikanya benar) melainkan anggaran tinggi —
+  di viewport pendek topbar + status + timeline + panel-h + now-cap +
+  transport menghabiskan ~434 dari 540px. Perbaikan: (1) pita timeline
+  ringkas `--tl-h:186px` bila tinggi ≤800px (ambang lama 760px meleset 8px
+  untuk 1366×768, ukuran tablet landscape paling umum) dan `--tl-h:170px`
+  bila ≤640px, plus `max-height` supaya panel tidak meluber menutupi
+  status bar; (2) **mode fokus viewer** — tombol di panel-h viewer (ikon
+  sudut, Esc untuk keluar) melipat timeline + transport + now-cap sehingga
+  stage 9:16 mendapat seluruh tinggi workspace (1024×540: 77×137 →
+  215×382; 1366×768: 187×333 → 334×594); (3) ambang label klip berbasis
+  lebar piksel + panjang label (bukan % durasi): shot `<labelPx+8` nomor
+  saja, `<labelPx+42` "Shot N" tanpa durasi/kamera, selebihnya lengkap —
+  shot terpanjang 3,4–3,6 dtk tidak lagi "Sh…"; caption `<30px` hanya
+  singkatan pembicara (Cl/Cx/Br), 30–70px teks ellipsis dengan padding
+  dipadatkan; (4) `fitTimeline` atomik — lebar konten dihitung dari pps
+  yang sama dengan state, menghilangkan jendela transien saat konten
+  sempat lebih lebar dari viewport sesudah ganti template; (5) `fitStage`
+  memakai padding 8px bila tinggi viewport ≤640px; (6) tombol play overlay
+  `min(54px, 36%)` dari lebar frame + HUD stage disembunyikan lewat
+  container query bila frame ≤150px. "Terapkan semua edit" abu-abu tanpa
+  edit adalah BY-DESIGN (`disabled={!ready || !anyDirty || …}`) — keadaan
+  dijelaskan baris status di bawah tombol yang kini selalu terlihat
+  (aksi inspector sticky di bawah area scroll); "Simpan sebagai video baru"
+  terverifikasi TIDAK terpotong di landscape (auditor: tepi bawah 113px di
+  atas viewport di 1024×540). Template asli + `lib/studio.ts` tidak
+  disentuh; `npm run build` hijau; 0 console error di semua lebar
+  (1024×540, 1024×768, 1180×820, 1366×768, 1440×900, 1920×1080, sentuh +
+  template Adu Kode) dan regresi 390px portrait.

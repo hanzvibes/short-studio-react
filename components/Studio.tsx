@@ -132,6 +132,22 @@ export default function Studio() {
   const [voTouched, setVoTouched] = useState(false);
   const [origProps, setOrigProps] = useState<PropValues>({});
   const [draftProps, setDraftProps] = useState<PropValues>({});
+  // Baseline "terakhir diterapkan" untuk caption/shot/props/VO — cermin
+  // `applied` pada teks (bandingkan `dirty`, yang memakai `applied`,
+  // bukan `def`). `orig*` TETAP baseline template asli: ia dipakai
+  // persistensi ss.edits.v1 (saveCurrentFullEdit), tombol "Kembalikan",
+  // ekspor .html, dan Video Buatan Saya — semuanya membandingkan draft
+  // vs ASLI. Yang dibandingkan ke tombol Terapkan + baris status adalah
+  // baseline ini, supaya sesudah apply tombol kembali disabled dan
+  // status kembali "Tidak ada perubahan". Meng-update orig* langsung
+  // justru akan menghapus edit tersimpan pada saveCurrentFullEdit()
+  // berikutnya (draft == orig -> entri dihapus dari ss.edits.v1, edit
+  // hilang saat ganti template) dan membuat ekspor/Video Buatan Saya
+  // kehilangan edit yang sudah diterapkan.
+  const [appliedCaps, setAppliedCaps] = useState<Cap[] | null>(null);
+  const [appliedShots, setAppliedShots] = useState<Shot[] | null>(null);
+  const [appliedVO, setAppliedVO] = useState<string[] | null>(null);
+  const [appliedProps, setAppliedProps] = useState<PropValues>({});
   const [propsAvail, setPropsAvail] = useState<{ def: PropDef; value: PropValue }[]>([]);
   const [propsUnavail, setPropsUnavail] = useState<{ def: PropDef; reason: string }[]>([]);
   /** Teks mentah field JSON untuk prop array (tank.curve, rival.notes,
@@ -158,10 +174,16 @@ export default function Studio() {
   const [toastMsg, setToastMsg] = useState("");
   const [tlPps, setTlPps] = useState(20);
   const [tlFit, setTlFit] = useState(true);
+  const [tlContentW, setTlContentW] = useState(0);
   const [tlRange, setTlRange] = useState(0);
   const [snap, setSnap] = useState(true);
   const [vZoom, setVZoom] = useState(0);
   const [guides, setGuides] = useState(false);
+  /** Mode fokus viewer: lipat timeline + transport + now-cap supaya stage
+   *  9:16 mendapat seluruh tinggi workspace (lihat CSS .focus-view).
+   *  Satu-satunya jalan di viewport pendek — stage sudah fit-to-height,
+   *  yang kurang adalah ruangnya. Session-only, tidak disimpan. */
+  const [focusView, setFocusView] = useState(false);
   const [fps, setFps] = useState(60);
   const [hiddenTracks, setHiddenTracks] = useState<Record<string, boolean>>({});
   const [lockedTracks, setLockedTracks] = useState<Record<string, boolean>>({});
@@ -291,7 +313,7 @@ export default function Studio() {
     if (!canvas || !stage) return;
     const r = canvas.getBoundingClientRect();
     if (r.width < 20 || r.height < 20) return;
-    const padPx = window.innerWidth <= 900 ? 8 : window.innerWidth <= 1180 ? 14 : 22;
+    const padPx = window.innerHeight <= 640 ? 8 : window.innerWidth <= 900 ? 8 : window.innerWidth <= 1180 ? 14 : 22;
     const availW = Math.max(60, r.width - padPx * 2);
     const availH = Math.max(80, r.height - padPx * 2);
     let h = Math.min(availH, (availW * 16) / 9);
@@ -302,7 +324,7 @@ export default function Studio() {
 
   useEffect(() => {
     fitStage();
-  }, [fitStage, drawerOpen, ready]);
+  }, [fitStage, drawerOpen, ready, focusView]);
 
   // Drawer: CSS memakai body.drawer-open / body.drawer-closed (port dari
   // studio.js vanilla). Tanpa ini, di layar <=1180px drawer tidak pernah
@@ -511,9 +533,15 @@ export default function Studio() {
       setDraftCaps(mineOverride?.caps ?? fe?.caps ?? pc ?? []);
       setDraftShots(mineOverride?.shots ?? fe?.shots ?? ps ?? []);
       setDraftVO(mineOverride?.vo ?? fe?.vo ?? pv ?? null);
+      // Edit tersimpan / Video Buatan Saya sudah diterapkan ke preview
+      // saat load (via mount), jadi baseline "diterapkan" = draft awal.
+      setAppliedCaps(mineOverride?.caps ?? fe?.caps ?? pc ?? []);
+      setAppliedShots(mineOverride?.shots ?? fe?.shots ?? ps ?? []);
+      setAppliedVO(mineOverride?.vo ?? fe?.vo ?? pv ?? null);
       setVoTouched(!!(mineOverride?.vo || fe?.voTouched));
       const dp = mineOverride?.props ?? fe?.props ?? origP;
       setDraftProps(dp);
+      setAppliedProps(dp);
       // Teks mentah field JSON prop array dari nilai yang sama (bukan dari
       // origP saja — edit tersimpan / Video Buatan Saya bisa membawa nilai
       // array yang sudah diubah).
@@ -649,6 +677,26 @@ export default function Studio() {
     () => JSON.stringify(draftProps) !== JSON.stringify(origProps),
     [draftProps, origProps]
   );
+  /** Perubahan yang BELUM diterapkan (draft vs baseline terakhir
+   *  diterapkan) — inilah yang menggerakkan tombol Terapkan, baris
+   *  status, dan catatan VO. `*Changed` di atas (vs orig) tetap dipakai
+   *  persistensi, ekspor, Video Buatan Saya, dan tombol "Kembalikan". */
+  const capsPending = useMemo(
+    () => appliedCaps !== null && JSON.stringify(draftCaps) !== JSON.stringify(appliedCaps),
+    [draftCaps, appliedCaps]
+  );
+  const shotsPending = useMemo(
+    () => appliedShots !== null && JSON.stringify(draftShots) !== JSON.stringify(appliedShots),
+    [draftShots, appliedShots]
+  );
+  const propsPending = useMemo(
+    () => JSON.stringify(draftProps) !== JSON.stringify(appliedProps),
+    [draftProps, appliedProps]
+  );
+  const voPending = useMemo(
+    () => voTouched && JSON.stringify(draftVO) !== JSON.stringify(appliedVO),
+    [voTouched, draftVO, appliedVO]
+  );
   const capVal = useMemo(
     () => (origCaps !== null ? validateCaps(draftCaps, len) : { errors: [] as string[], warnings: [] as string[] }),
     [draftCaps, origCaps, len]
@@ -697,15 +745,40 @@ export default function Studio() {
   }, [propVal, propsAvail]);
   const allWarnings = useMemo(() => [...capVal.warnings, ...shotVal.warnings, ...propVal.warnings], [capVal, shotVal, propVal]);
   const voFollowNote = useMemo(() => {
-    if (!capsChanged || voTouched) return "";
+    if (!capsPending || voTouched) return "";
     if (voKindState === "literal") return "VO akan mengikuti teks caption baru saat diterapkan.";
     if (voKindState === "derived") return "VO template ini mengikuti caption otomatis (caps.map).";
     return "";
-  }, [capsChanged, voTouched, voKindState]);
+  }, [capsPending, voTouched, voKindState]);
   const anyDirty = useMemo(
-    () => dirty || capsChanged || shotsChanged || propsChanged || (voTouched && JSON.stringify(draftVO) !== JSON.stringify(origVO)),
-    [dirty, capsChanged, shotsChanged, propsChanged, voTouched, draftVO, origVO]
+    () => dirty || capsPending || shotsPending || propsPending || voPending,
+    [dirty, capsPending, shotsPending, propsPending, voPending]
   );
+
+  /** Kelompok perubahan untuk baris status tombol Terapkan: tombol itu
+   *  sengaja disabled bila tidak ada edit (by-design, bukan bug) — tapi
+   *  tanpa penjelasan tampak rusak, jadi keadaannya ditulis eksplisit
+   *  di bawah tombol di semua tab. */
+  const changeGroups = useMemo(() => {
+    const g: string[] = [];
+    const n = normalize(fields);
+    // Teks dibandingkan ke `applied` (sudah diterapkan), bukan `def`:
+    // teks yang sudah diterapkan tidak boleh tampil sebagai "siap
+    // diterapkan" saat kelompok lain masih pending.
+    const tc = (["title", "sub", "end"] as const).filter((k) => n[k] !== applied[k]).length;
+    if (tc) g.push(`${tc} teks`);
+    if (capsPending) g.push("caption");
+    if (shotsPending) g.push("shot");
+    if (propsPending) g.push("props");
+    if (voPending) g.push("VO");
+    return g;
+  }, [normalize, fields, applied, capsPending, shotsPending, propsPending, voPending]);
+  const applyStateText = useMemo(() => {
+    if (!ready) return "Menunggu preview siap…";
+    if (allErrors.length) return `Ada ${allErrors.length} error validasi — perbaiki dulu, Terapkan ditahan.`;
+    if (!anyDirty) return "Tidak ada perubahan — ubah teks, caption, shot, atau props untuk mengaktifkan Terapkan.";
+    return `Siap diterapkan: ${changeGroups.join(" · ")}.`;
+  }, [ready, allErrors.length, anyDirty, changeGroups]);
 
 
   /** Terapkan SEMUA edit (teks+caps+shots+VO+props) — tombol Terapkan di
@@ -713,6 +786,19 @@ export default function Studio() {
   const applyAll = useCallback(() => {
     if (!base || !ready || !anyDirty || allErrors.length) return;
     saveCurrentFullEdit();
+    // Jadikan draft yang baru diterapkan sebagai baseline "diterapkan",
+    // supaya tombol kembali disabled + status "Tidak ada perubahan".
+    // orig* SENGAJA tidak diubah (lihat komentar di deklarasi
+    // appliedCaps): saveCurrentFullEdit() di atas sudah menyimpan edit
+    // vs orig* sebelum baseline ini diperbarui. Nilai diambil dari
+    // stateRef (selalu segar; closure applyAll tidak membawa draft* di
+    // deps) dan di-deep-copy supaya edit berikutnya tidak mengotori
+    // baseline lewat referensi bersama.
+    const s = stateRef.current;
+    setAppliedCaps(s.draftCaps.map((c) => [...c] as Cap));
+    setAppliedShots(s.draftShots.map((x) => [x[0], [...x[1]], [...x[2]]] as Shot));
+    setAppliedVO(s.draftVO ? [...s.draftVO] : null);
+    setAppliedProps(JSON.parse(JSON.stringify(s.draftProps)) as PropValues);
     setEdits((prev) => {
       const next = { ...prev };
       if (hasChanges()) next[cur.file] = { ...normalize(fields) };
@@ -877,9 +963,16 @@ export default function Studio() {
         setDraftCaps(entry.caps ?? origCaps ?? []);
         setDraftShots(entry.shots ?? origShots ?? []);
         setDraftVO(entry.vo ?? origVO ?? null);
+        // Entri mine langsung diterapkan ke preview (mount di bawah),
+        // jadi baseline "diterapkan" ikut disinkronkan — kalau tidak,
+        // tombol Terapkan akan tampak aktif padahal tidak ada yang pending.
+        setAppliedCaps(entry.caps ?? origCaps ?? []);
+        setAppliedShots(entry.shots ?? origShots ?? []);
+        setAppliedVO(entry.vo ?? origVO ?? null);
         setVoTouched(!!entry.vo);
         if (entry.props) {
           setDraftProps(entry.props);
+          setAppliedProps(JSON.parse(JSON.stringify(entry.props)) as PropValues);
           setArrayText((prev) => {
             const next = { ...prev };
             Object.keys(entry.props as PropValues).forEach((id) => {
@@ -1031,15 +1124,41 @@ export default function Studio() {
   const fitTimeline = useCallback(() => {
     setTlRange(0);
     setTlFit(true);
-    setTlPps(fitPps());
+    const pps = fitPps();
+    setTlPps(pps);
+    // Setel lebar konten dari pps YANG SAMA (bukan dari state tlPps yang
+    // masih basi): efek lebar konten jalan SEBELUM efek fit ini dalam
+    // satu commit yang sama, jadi tanpa ini konten sempat 651 px
+    // (pps lama dari len=30) di viewport 575 px — klip terpotong di
+    // kanan + label dihitung dari lebar yang salah — sampai render
+    // berikutnya mengoreksinya.
+    const el = tlContentRef.current;
+    if (el) {
+      const w = Math.max(tlScrollRef.current?.clientWidth || 0, Math.ceil(len * pps), 120);
+      el.style.width = w + "px";
+    }
     if (tlScrollRef.current) tlScrollRef.current.scrollLeft = 0;
-  }, [fitPps]);
+  }, [fitPps, len]);
   useEffect(() => {
     applyTimelineWidth();
   }, [applyTimelineWidth, shots, caps, len]);
+  // Lebar konten timeline dalam px (untuk ambang label klip — lihat bawah).
+  useEffect(() => {
+    const el = tlContentRef.current;
+    if (!el) return;
+    const update = () => setTlContentW(el.clientWidth);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   useEffect(() => {
     if (tlFit) fitTimeline();
-  }, [len, tlFit, fitTimeline]);
+    // Drawer ikut mengubah lebar viewport timeline (<=1180px): tanpa
+    // ini fit dihitung saat drawer masih terbuka lalu tidak pernah
+    // dihitung ulang sesudah drawer menutup, sehingga klip hanya
+    // mengisi ~88% lebar track (ruang kosong di kanan).
+  }, [len, tlFit, fitTimeline, drawerOpen]);
 
   const setTimelineZoom = useCallback(
     (v: number) => {
@@ -1392,12 +1511,14 @@ export default function Studio() {
         setCmdSel(0);
       } else if (k === "d" || k === "D") setTheme(theme === "dark" ? "light" : "dark");
       else if (k === "Escape") {
-        if (window.innerWidth <= 1180) setDrawerOpen(false);
+        // Esc keluar dari fokus viewer dulu sebelum menutup drawer.
+        if (focusView) setFocusView(false);
+        else if (window.innerWidth <= 1180) setDrawerOpen(false);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [tourStep, cmdOpen, expOpen, keysOpen, applyAll, goTo, currentTime, toggle, activeShot, shots, caps, selectClip, toggleMute, fitTimeline, toast, cur, load, theme, setTheme, len, endTour]);
+  }, [tourStep, cmdOpen, expOpen, keysOpen, applyAll, goTo, currentTime, toggle, activeShot, shots, caps, selectClip, toggleMute, fitTimeline, toast, cur, load, theme, setTheme, len, endTour, focusView]);
 
   // ---------- derived ----------
   const filtered = useMemo(() => {
@@ -1450,7 +1571,7 @@ export default function Studio() {
   const selCap = sel?.kind === "cap" ? caps[sel.i] : undefined;
 
   return (
-    <div className={`app${drawerOpen ? "" : " drawer-closed"}`}>
+    <div className={`app${drawerOpen ? "" : " drawer-closed"}${focusView ? " focus-view" : ""}`}>
       <header className="topbar">
         <button id="menu" className="tb-icon" aria-label="Buka atau tutup panel Project" aria-expanded={drawerOpen} title="Panel Project (T)" onClick={() => setDrawerOpen((v) => !v)}>
           <svg viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z" /></svg>
@@ -1608,6 +1729,9 @@ export default function Studio() {
             <span className="panel-t"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4V4zm2 2v12h12V6H6z" /></svg><span>Comp 1 · {cur.label}</span></span>
             <span className="chip">1080×1920 · 60 fps</span>
             <span className="grow" />
+            <button className="ph-icon" aria-pressed={focusView} aria-label={focusView ? "Keluar dari fokus viewer" : "Fokus viewer — sembunyikan timeline dan transport"} title={focusView ? "Keluar dari fokus viewer (Esc)" : "Fokus viewer — sembunyikan timeline & transport"} onClick={() => { setFocusView((v) => !v); toast(!focusView ? "Fokus viewer — timeline disembunyikan" : "Fokus viewer nonaktif"); }}>
+              <svg viewBox="0 0 24 24"><path d="M3 5h6v2H5v4H3zm18 0h-6v2h4v4h2zm-18 14h6v-2H5v-4H3zm18 0h-6v-2h4v-4h2z" /></svg>
+            </button>
             <button className="ph-icon" aria-pressed={guides} aria-label="Garis bantu" title="Garis bantu (G)" onClick={() => { setGuides((v) => !v); toast(!guides ? "Garis bantu aktif" : "Garis bantu nonaktif"); }}>
               <svg viewBox="0 0 24 24"><path d="M3 3h18v18H3V3zm2 2v4h4V5H5zm6 0v4h4V5h-4zm6 0v4h4V5h-4zM5 11v4h4v-4H5zm6 0v4h4v-4h-4zm6 0v4h4v-4h-4zM5 17v2h4v-2H5zm6 0v2h4v-2h-4zm6 0v2h4v-2h-4z" /></svg>
             </button>
@@ -1688,8 +1812,14 @@ export default function Studio() {
               e.preventDefault();
               const startY = e.clientY;
               const startH = tlHeight;
+              // Batas atas = tinggi baris timeline dari CSS (var --tl-h,
+              // sudah memperhitungkan pita <=1180px dan viewport pendek).
+              // Tanpa ini panel hasil drag (mis. 264px) meluber keluar
+              // barisnya dan menutupi status bar.
+              const rowCap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--tl-h")) || 264;
+              const maxH = Math.max(170, Math.min(window.innerHeight * 0.62, rowCap));
               const move = (ev: PointerEvent) => {
-                const h = clamp(startH + (startY - ev.clientY), 170, window.innerHeight * 0.62);
+                const h = clamp(startH + (startY - ev.clientY), 170, maxH);
                 setTlHeight(Math.round(h));
               };
               const up = () => {
@@ -1785,17 +1915,28 @@ export default function Studio() {
                       const b = i + 1 < shots.length ? shots[i + 1][0] : len;
                       const cams = Array.isArray(x[1]) ? (x[1] as (string | number)[]).join(" · ") : String(x[1] ?? "camera");
                       const wPct = pct(b - a);
+                      // Ambang label dalam PX + PANJANG LABEL, bukan %:
+                      // "Shot N" butuh ±36px apa pun lebar timeline-nya,
+                      // dan klip normal harus muat judul + durasi (±22px)
+                      // + padding 12px + gap ±5px — total ±78px. Ambang
+                      // 72px lama meleset: klip 73px di 1366 tetap
+                      // menampilkan "Sho…" + durasi. tiny: nomor saja ·
+                      // compact: "Shot N" tanpa durasi/kamera · normal:
+                      // lengkap. Tooltip title tetap lengkap di semua ukuran.
+                      const wPx = tlContentW ? (wPct / 100) * tlContentW : wPct * 7;
+                      const labelPx = ("Shot " + (i + 1)).length * 6;
+                      const cls = wPx < labelPx + 8 ? "tiny" : wPx < labelPx + 42 ? "compact" : "";
                       return (
                         <button
                           key={i}
-                          className={`clip shot${activeShot === i ? " active" : ""}${sel?.kind === "shot" && sel.i === i ? " sel" : ""}${wPct < 2 ? " tiny" : wPct < 6 ? " compact" : ""}`}
+                          className={`clip shot${activeShot === i ? " active" : ""}${sel?.kind === "shot" && sel.i === i ? " sel" : ""}${cls ? " " + cls : ""}`}
                           data-kind="shot"
                           data-i={i}
                           style={{ left: pct(a) + "%", width: wPct + "%", ["--h" as string]: (i * 47 + 205) % 360 }}
                           title={`Shot ${i + 1} · ${fmt(a)}`}
                           onClick={(e) => { e.stopPropagation(); selectClip("shot", i, true); }}
                         >
-                          <span className="clip-txt"><b>{wPct < 2 ? String(i + 1) : "Shot " + (i + 1)}</b><small>{cams}</small></span>
+                          <span className="clip-txt"><b>{cls === "tiny" ? String(i + 1) : "Shot " + (i + 1)}</b><small>{cams}</small></span>
                           <span className="clip-time">{fmt1(b - a)}</span>
                         </button>
                       );
@@ -1809,19 +1950,30 @@ export default function Studio() {
                 </div>
                 <div className={`track${hiddenTracks.caps ? " hidden" : ""}${lockedTracks.caps ? " locked" : ""}`} data-track="caps">
                   <div className="lane">
-                    {caps.length ? caps.map((x, i) => (
+                    {caps.length ? caps.map((x, i) => {
+                      // Lebar klip caption dalam px — sama seperti shot:
+                      // <30px hanya singkatan pembicara (teks mustahil
+                      // dibaca), 30–70px teks ellipsis dengan padding
+                      // dipadatkan supaya kata pertama muat. Tooltip
+                      // title tetap berisi teks lengkap + waktu.
+                      const capPct = pct(Math.max(0.2, x[1] - x[0]));
+                      const capPx = tlContentW ? (capPct / 100) * tlContentW : capPct * 7;
+                      const tiny = capPx < 30;
+                      const spkAbbr = ["Cl", "Cx", "Br"][x[3] ?? 2] || "•";
+                      return (
                       <button
                         key={i}
-                        className={`clip cap${activeCap === i ? " active" : ""}${sel?.kind === "cap" && sel.i === i ? " sel" : ""}`}
+                        className={`clip cap${activeCap === i ? " active" : ""}${sel?.kind === "cap" && sel.i === i ? " sel" : ""}${tiny ? " tiny" : capPx < 70 ? " compact" : ""}`}
                         data-kind="cap"
                         data-i={i}
-                        style={{ left: pct(x[0]) + "%", width: pct(Math.max(0.2, x[1] - x[0])) + "%", ["--c" as string]: SPK[x[3] ?? 2] || SPK[2] }}
+                        style={{ left: pct(x[0]) + "%", width: capPct + "%", ["--c" as string]: SPK[x[3] ?? 2] || SPK[2] }}
                         title={`${x[2]} · ${fmt(x[0])}`}
                         onClick={(e) => { e.stopPropagation(); selectClip("cap", i, true); }}
                       >
-                        <span className="clip-txt">{x[2]}</span>
+                        <span className="clip-txt">{tiny ? (hasSpeaker ? spkAbbr : "") : x[2]}</span>
                       </button>
-                    )) : <span className="tl-empty">Tidak ada caption di template ini.</span>}
+                      );
+                    }) : <span className="tl-empty">Tidak ada caption di template ini.</span>}
                   </div>
                 </div>
                 <div className={`track${hiddenTracks.audio ? " hidden" : ""}`} data-track="audio">
@@ -1893,6 +2045,7 @@ export default function Studio() {
                       )}
                     </label>
                   ))}
+                  <div className="insp-stick">
                   <div className="insp-actions">
                     <button id="apply" className="btn primary" disabled={!ready || !anyDirty || allErrors.length > 0} title="Terapkan semua edit (Ctrl+Enter)" onClick={applyAll}>
                       <svg viewBox="0 0 24 24"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z" /></svg>
@@ -1908,6 +2061,8 @@ export default function Studio() {
                       <svg viewBox="0 0 24 24"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z" /></svg>
                       Simpan sebagai video baru
                     </button>
+                  </div>
+                  <p className="hint apply-state" role="status">{applyStateText}</p>
                   </div>
                   <p className="hint">Teks diganti di preview saja — file template di disk tidak diubah. Edit tiap template diingat selama tab terbuka.</p>
                 </div>
@@ -1990,9 +2145,12 @@ export default function Studio() {
                 </details>
                 {shotVal.errors.map((e, k) => <p key={k} className="valid-err">{e}</p>)}
                 {shotVal.warnings.map((w, k) => <p key={k} className="valid-warn">{w}</p>)}
+                <div className="insp-stick">
                 <div className="insp-actions">
                   <button id="apply-shot" className="btn primary" disabled={!ready || !anyDirty || allErrors.length > 0} title="Terapkan semua edit (Ctrl+Enter)" onClick={applyAll}>Terapkan semua edit</button>
                   <button id="reset-shot" className="btn ghost" disabled={!ready || !shotsChanged} title="Kembalikan shot asli" onClick={resetShots}>Kembalikan</button>
+                </div>
+                <p className="hint apply-state" role="status">{applyStateText}</p>
                 </div>
                 <p className="hint">Edit tersimpan di state dulu — klik Terapkan (Ctrl+Enter) untuk me-mount ulang preview dengan shot baru.</p>
               </div>
@@ -2079,9 +2237,12 @@ export default function Studio() {
                 </details>
                 {capVal.errors.map((e, k) => <p key={k} className="valid-err">{e}</p>)}
                 {capVal.warnings.map((w, k) => <p key={k} className="valid-warn">{w}</p>)}
+                <div className="insp-stick">
                 <div className="insp-actions">
                   <button id="apply-cap" className="btn primary" disabled={!ready || !anyDirty || allErrors.length > 0} title="Terapkan semua edit (Ctrl+Enter)" onClick={applyAll}>Terapkan semua edit</button>
                   <button id="reset-cap" className="btn ghost" disabled={!ready || (!capsChanged && !voTouched)} title="Kembalikan caption asli" onClick={resetCaps}>Kembalikan</button>
+                </div>
+                <p className="hint apply-state" role="status">{applyStateText}</p>
                 </div>
                 <p className="hint">Edit tersimpan di state dulu — klik Terapkan (Ctrl+Enter) untuk me-mount ulang preview dengan caption baru.</p>
               </div>
@@ -2141,9 +2302,12 @@ export default function Studio() {
                 )}
                 {propVal.errors.map((e, k) => <p key={k} className="valid-err">{e}</p>)}
                 {propVal.warnings.map((w, k) => <p key={k} className="valid-warn">{w}</p>)}
+                <div className="insp-stick">
                 <div className="insp-actions">
                   <button id="apply-props" className="btn primary" disabled={!ready || !anyDirty || allErrors.length > 0} title="Terapkan semua edit (Ctrl+Enter)" onClick={applyAll}>Terapkan semua edit</button>
                   <button id="reset-props" className="btn ghost" disabled={!ready || !propsChanged} title="Kembalikan props asli" onClick={resetProps}>Kembalikan</button>
+                </div>
+                <p className="hint apply-state" role="status">{applyStateText}</p>
                 </div>
                 <p className="hint">Props ditulis ulang sebagai nilai literal di HTML preview (pola yang sama seperti teks/caption). Jarak antar maskot dijaga &gt;0.1 dan monitor 2.4 butuh jarak pusat ≥2.6 (SKILL.md). Warna aksen juga menyinkronkan warna bubble caption (CC). Prop array (skor papan, kurva tangki, sticky notes, spawn/ketapel, jendela/baris ketik) diedit sebagai teks JSON — nilai tidak valid menampilkan error dan menahan Terapkan.</p>
               </div>
