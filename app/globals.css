@@ -707,3 +707,43 @@ dialog { z-index: 80; }
 .mine-open{flex:1;min-width:0;text-align:left;display:flex;flex-direction:column;gap:1px}
 .mine-open b{font-size:11.5px;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mine-open small{font-size:10px;color:var(--faint)}
+
+/* ---------- bottom sheet inspector (portrait ≤900px) ---------- */
+/* Elemen sheet disembunyikan di luar mode sheet (desktop/landscape). */
+.sheet-handle,.sheet-head,.sheet-fab,.tl-fold{display:none}
+/* Hanya portrait ≤900px: di desktop 1440px dan landscape 1366×768
+   aturan ini tidak ada, layout lama byte-identik perilakunya. */
+@media (max-width:900px) and (orientation:portrait){
+  /* Inspector keluar dari grid baris ke-3 (barisnya kolaps ke 0) dan
+     jadi lembaran fixed setinggi Full; snap digerakkan pakai transform,
+     bukan height — drag 1:1 tanpa reflow. */
+  .app.sheet-mode .inspector{position:fixed;left:0;right:0;bottom:calc(var(--status-h) + env(safe-area-inset-bottom,0px));height:calc(100dvh - 76px);min-height:0;margin-bottom:0;z-index:75;border-radius:16px 16px 0 0;border-top:1px solid var(--line-2);box-shadow:0 -8px 24px rgba(0,0,0,.35);transform:translateY(calc(100% - 148px));transition:transform .28s var(--ease),visibility 0s 0s}
+  .app.sheet-mode .inspector.sheet-half{transform:translateY(calc(100% - min(46dvh,480px)))}
+  .app.sheet-mode .inspector.sheet-full{transform:translateY(0)}
+  .app.sheet-mode .inspector.sheet-closed{transform:translateY(100%);visibility:hidden;transition:transform .28s var(--ease),visibility 0s .28s}
+  /* Keyboard terbuka: tinggi sheet di-clamp ke visualViewport − 76px. */
+  .app.sheet-mode.kb-open .inspector{height:calc(var(--vv-h,100dvh) - 76px)}
+  /* .panes satu-satunya area scroll sheet; tanpa max-height 400px lama
+     supaya snap Full benar-benar terisi. */
+  .app.sheet-mode .inspector .panes{max-height:none;overscroll-behavior:contain;touch-action:pan-y}
+  .app.sheet-mode .inspector .meta{display:none}
+  .app.sheet-mode .sheet-handle{display:flex;align-items:center;justify-content:center;height:20px;flex:0 0 auto;touch-action:none;cursor:grab}
+  .app.sheet-mode .sheet-handle i{width:36px;height:4px;border-radius:2px;background:var(--faint)}
+  .app.sheet-mode .sheet-head{display:flex;align-items:center;gap:8px;height:56px;flex:0 0 auto;padding:0 8px 0 12px;touch-action:none}
+  .app.sheet-mode .sheet-play{width:44px;height:44px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;flex:0 0 auto}
+  .app.sheet-mode .sheet-play svg{width:16px;height:16px;fill:currentColor}
+  .app.sheet-mode .sheet-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;font-weight:650;color:var(--ink-2)}
+  .app.sheet-mode .dirty-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent);margin-left:6px;vertical-align:middle}
+  .app.sheet-mode .sheet-apply{height:44px;flex:0 0 auto}
+  .app.sheet-mode .sheet-chev{width:44px;height:44px;display:grid;place-items:center;color:var(--dim);font-size:20px;flex:0 0 auto}
+  .app.sheet-mode .sheet-fab{display:inline-flex;position:fixed;right:16px;bottom:calc(var(--status-h) + 16px + env(safe-area-inset-bottom,0px));z-index:75;height:56px;padding:0 20px;border-radius:28px;background:var(--accent);color:#fff;font-size:14px;font-weight:700;box-shadow:0 4px 16px rgba(0,0,0,.4);align-items:center;gap:6px}
+  /* Timeline jadi strip: header + ruler saja, track disembunyikan. */
+  .app.sheet-mode .timeline.tl-collapsed .tl-body{grid-template-columns:minmax(0,1fr);height:var(--h-ruler)}
+  .app.sheet-mode .timeline.tl-collapsed .tl-heads{display:none}
+  .app.sheet-mode .timeline.tl-collapsed .track{display:none}
+  .app.sheet-mode .timeline.tl-collapsed .tl-tools .tool:not(#tlFit):not(.tl-fold),
+  .app.sheet-mode .timeline.tl-collapsed .tl-tools #tlZoom,
+  .app.sheet-mode .timeline.tl-collapsed .tl-tools .tool-sep{display:none}
+  .app.sheet-mode .tl-fold{display:inline-flex;align-items:center;gap:2px;height:44px;padding:0 8px;font-size:12px;font-weight:600;color:var(--ink-2);white-space:nowrap}
+  .app.sheet-mode.sheet-closed .tl-fold{display:none}
+}

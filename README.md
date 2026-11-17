@@ -97,6 +97,20 @@ deterministik. File template di disk tidak pernah diubah.
 - Palet perintah (Ctrl/⌘+K atau `/`), menu bar (File/Edit/Komposisi/
   Tampilan/Bantuan), tema gelap (default) / terang, tur singkat 5 langkah,
   status bar, toast.
+- **Alur HP satu layar (portrait ≤900px):** inspector jadi lembaran geser
+  dari bawah (bottom sheet) supaya video tetap kelihatan saat mengedit —
+  snap Peek 148px (default) / Half / Full / Closed + tombol pil "✎ Edit"
+  saat tertutup. Gagang + header bisa diseret (jari), ketuk header
+  Peek ↔ Half, tombol ⌄ ciutkan satu langkah, Esc ciutkan berurutan.
+  Header sheet selalu kelihatan: tombol putar/jeda mini, judul konteks
+  ("Sedang mengedit: <nama objek>" di tab Objek) + titik biru bila ada
+  perubahan belum diterapkan, tombol Terapkan (sama seperti Terapkan di
+  tiap tab), dan ⌄. Timeline otomatis terlipat jadi strip (header +
+  ruler, tetap bisa scrub + Fit); tombol "▴ Timeline" membukanya lagi
+  untuk memilih klip. Keyboard virtual: sheet naik otomatis Peek → Half
+  dan tingginya di-clamp mengikuti `visualViewport`, lalu snap semula
+  kembali saat keyboard tutup. Sheet saling-eksklusif dengan panel
+  Project dan fokus viewer. Desktop dan landscape tidak berubah.
 - Pintasan: Space/K putar-jeda, ←/→ ±1 dtk, Shift+←/→ ±5 dtk,
   Alt+←/→ ±1 frame, `[`/`]` shot, `,`/`.` caption, Home/End, M suara,
   L loop, G garis bantu, F fit timeline, E ekspor, T panel Project,

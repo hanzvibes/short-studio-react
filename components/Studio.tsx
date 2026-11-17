@@ -583,6 +583,138 @@ export default function Studio() {
   const [tourCardPos, setTourCardPos] = useState<{ x: number; y: number }>({ x: 20, y: 20 });
   const [tlHeight, setTlHeight] = useState(264);
 
+  // ---------- bottom sheet inspector (portrait ≤900px) ----------
+  /** Snap sheet: peek 148px / half min(46dvh,480px) / full 100dvh−76px / closed. */
+  type SheetSnap = "peek" | "half" | "full" | "closed";
+  const [sheetMode, setSheetMode] = useState(false);
+  const [sheetSnap, setSheetSnap] = useState<SheetSnap>("peek");
+  /** Lipatan timeline manual: null = ikut sheet (terlipat saat sheet
+   *  terbuka), true = dibuka manual oleh pengguna. */
+  const [tlManual, setTlManual] = useState<boolean | null>(null);
+  const [sheetKbOpen, setSheetKbOpen] = useState(false);
+  const sheetRef = useRef<HTMLElement | null>(null);
+  const dragRef = useRef<{ startY: number; startTranslate: number; lastY: number; lastT: number; vy: number; moved: boolean; pointerId: number } | null>(null);
+  const prevSnapRef = useRef<SheetSnap | null>(null);
+  const prevTlHeightRef = useRef<number | null>(null);
+  const kbOpenRef = useRef(false);
+  const tlToastShownRef = useRef(false);
+  const sheetSnapRef = useRef<SheetSnap>("peek");
+  const sheetModeRef = useRef(false);
+  const drawerOpenRef = useRef(drawerOpen);
+  sheetSnapRef.current = sheetSnap;
+  sheetModeRef.current = sheetMode;
+  drawerOpenRef.current = drawerOpen;
+  /** Timeline terlipat jadi strip saat sheet terbuka (kecuali dibuka manual). */
+  const tlCollapsed = sheetMode && sheetSnap !== "closed" && tlManual !== true;
+  const tlCollapsedRef = useRef(false);
+  tlCollapsedRef.current = tlCollapsed;
+
+  const openSheetIfClosed = useCallback((s: SheetSnap) => {
+    if (sheetModeRef.current && sheetSnapRef.current === "closed") setSheetSnap(s);
+  }, []);
+  const closeSheet = useCallback(() => { setSheetSnap("closed"); }, []);
+  const stepDownSnap = useCallback(() => {
+    setSheetSnap((s) => (s === "full" ? "half" : s === "half" ? "peek" : "closed"));
+  }, []);
+  const toggleSheetSnap = useCallback(() => {
+    setSheetSnap((s) => (s === "full" ? "half" : s === "peek" ? "half" : s === "half" ? "peek" : "peek"));
+  }, []);
+  const toggleTlFold = useCallback(() => {
+    setTlManual((m) => (m === true ? null : true));
+  }, []);
+  const sheetHalfH = useCallback((fullH: number) => Math.min(window.innerHeight * 0.46, 480, fullH), []);
+
+  /** Drag gagang/header: pointer events + pointer capture (bukan
+   *  mouse-only). Selama drag, transform ditulis inline tanpa transisi;
+   *  saat lepas, snap terdekat (atau satu snap searah fling ≥0,5 px/ms). */
+  const onSheetDragStart = useCallback((e: React.PointerEvent) => {
+    if (!sheetModeRef.current) return;
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    if ((e.target as HTMLElement).closest("button")) return;
+    const el = sheetRef.current;
+    if (!el) return;
+    // Cegah aksi default mousedown (pindah fokus ke field pertama di
+    // .panes + seleksi teks) selama drag — tanpa ini drag pakai mouse
+    // memindahkan fokus ke kolom Judul/Subjudul.
+    e.preventDefault();
+    const fullH = el.offsetHeight;
+    const visible = sheetSnapRef.current === "closed" ? 0 : sheetSnapRef.current === "peek" ? 148 : sheetSnapRef.current === "half" ? sheetHalfH(fullH) : fullH;
+    dragRef.current = { startY: e.clientY, startTranslate: fullH - visible, lastY: e.clientY, lastT: performance.now(), vy: 0, moved: false, pointerId: e.pointerId };
+    try { el.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+    el.style.transition = "none";
+  }, [sheetHalfH]);
+  const onSheetPointerMove = useCallback((e: React.PointerEvent) => {
+    const drag = dragRef.current;
+    if (!drag || e.pointerId !== drag.pointerId) return;
+    const el = sheetRef.current;
+    if (!el) return;
+    const now = performance.now();
+    const dt = now - drag.lastT;
+    if (dt > 0) drag.vy = (e.clientY - drag.lastY) / dt;
+    drag.lastY = e.clientY;
+    drag.lastT = now;
+    const dy = e.clientY - drag.startY;
+    if (Math.abs(dy) > 6) drag.moved = true;
+    const fullH = el.offsetHeight;
+    el.style.transform = `translateY(${clamp(drag.startTranslate + dy, 0, fullH)}px)`;
+  }, []);
+  const onSheetPointerUp = useCallback((e: React.PointerEvent) => {
+    const drag = dragRef.current;
+    if (!drag || e.pointerId !== drag.pointerId) return;
+    dragRef.current = null;
+    const el = sheetRef.current;
+    if (!el) return;
+    try { el.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+    const fullH = el.offsetHeight;
+    const translate = clamp(drag.startTranslate + (e.clientY - drag.startY), 0, fullH);
+    const visible = fullH - translate;
+    const halfH = sheetHalfH(fullH);
+    const snaps: SheetSnap[] = ["closed", "peek", "half", "full"];
+    const heights = [0, 148, halfH, fullH];
+    let idx = 0;
+    let best = Infinity;
+    heights.forEach((h, i) => {
+      const d = Math.abs(visible - h);
+      if (d < best) { best = d; idx = i; }
+    });
+    const curIdx = snaps.indexOf(sheetSnapRef.current);
+    if (Math.abs(drag.vy) >= 0.5 && curIdx >= 0) {
+      idx = drag.vy > 0 ? Math.max(0, curIdx - 1) : Math.min(snaps.length - 1, curIdx + 1);
+    }
+    // Ketuk (tanpa geser) pada gagang/header = Peek ↔ Half. Klik tidak
+    // bisa diandalkan di sini: setPointerCapture mengalihkan event klik
+    // ke aside sehingga onClick header tidak pernah sampai.
+    if (!drag.moved) {
+      toggleSheetSnap();
+      return;
+    }
+    el.style.transition = "";
+    el.style.transform = `translateY(${fullH - heights[idx]}px)`;
+    setSheetSnap(snaps[idx]);
+  }, [sheetHalfH, toggleSheetSnap]);
+  /** Drag dibatalkan (mis. panggilan masuk): kembali ke snap semula
+   *  tanpa toggle. */
+  const onSheetPointerCancel = useCallback((e: React.PointerEvent) => {
+    const drag = dragRef.current;
+    if (!drag || e.pointerId !== drag.pointerId) return;
+    dragRef.current = null;
+    const el = sheetRef.current;
+    if (!el) return;
+    try { el.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+    el.style.transition = "";
+    el.style.transform = "";
+  }, []);
+  /** Field yang difokuskan di-scroll ke tengah area kelihatan saat
+   *  keyboard terbuka (di dalam .panes, bukan dokumen). */
+  const onSheetFocusCapture = useCallback((e: React.FocusEvent) => {
+    if (!sheetModeRef.current || !kbOpenRef.current) return;
+    const t = e.target as HTMLElement;
+    if (!/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
+    const scroll = () => t.scrollIntoView({ block: "center", behavior: "smooth" });
+    scroll();
+    setTimeout(scroll, 350);
+  }, []);
+
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const viewerCanvasRef = useRef<HTMLDivElement>(null);
@@ -667,11 +799,11 @@ export default function Studio() {
       if (r.width > 0 && r.height > 0) {
         const avail = new Set(propsAvail.map((p) => p.def.obj));
         const key = pickObjAt(cur.file, (e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height, avail);
-        if (key) setSelObj(key);
+        if (key) { setSelObj(key); openSheetIfClosed("half"); }
       }
     }
     toggle();
-  }, [tab, cur.file, propsAvail, toggle]);
+  }, [tab, cur.file, propsAvail, toggle, openSheetIfClosed]);
 
   const normalize = useCallback((f: TextFields): TextFields => {
     const o = { ...f };
@@ -751,6 +883,118 @@ export default function Studio() {
     return () => window.removeEventListener("resize", onResize);
   }, [fitStage]);
 
+  // ---------- bottom sheet: mode, snap, keyboard, timeline ----------
+  // Mode sheet: portrait ≤900px (matchMedia + listener). Jangan baca
+  // window di initializer state (hidrasi) — nilai awal false, efek ini
+  // yang menyalakannya di klien.
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 900px) and (orientation: portrait)");
+    const onChange = () => setSheetMode(mq.matches);
+    onChange();
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
+  // Masuk/keluar mode sheet: masuk selalu dari peek; keluar kembalikan
+  // tinggi timeline + bersihkan transform inline, lalu fitStage().
+  useEffect(() => {
+    if (sheetMode) {
+      setSheetSnap("peek");
+      setTlManual(null);
+      prevSnapRef.current = null;
+    } else {
+      if (prevTlHeightRef.current !== null) {
+        setTlHeight(prevTlHeightRef.current);
+        prevTlHeightRef.current = null;
+      }
+      setTlManual(null);
+      kbOpenRef.current = false;
+      setSheetKbOpen(false);
+      const el = sheetRef.current;
+      if (el) { el.style.transform = ""; el.style.transition = ""; }
+      const t = setTimeout(() => fitStage(), 60);
+      return () => clearTimeout(t);
+    }
+  }, [sheetMode, fitStage]);
+
+  // Snap berubah: bersihkan transform inline (kelas CSS yang mengambil
+  // alih), fitStage sesudah transisi .28s, toast lipatan sekali.
+  useEffect(() => {
+    const el = sheetRef.current;
+    if (el) { el.style.transform = ""; el.style.transition = ""; }
+    if (!sheetMode) return;
+    if (sheetSnap !== "closed" && !tlToastShownRef.current) {
+      tlToastShownRef.current = true;
+      toast("Timeline dilipat — ketuk ▴ Timeline untuk memilih klip");
+    }
+    const t = setTimeout(() => fitStage(), 300);
+    return () => clearTimeout(t);
+  }, [sheetMode, sheetSnap, fitStage, toast]);
+
+  // Timeline dilipat jadi strip saat sheet terbuka; dikembalikan utuh
+  // saat sheet ditutup / lipatan dibuka manual. Nilai lama disimpan di
+  // ref supaya tidak tertimpa (bukan "tinggi pilihan pengguna").
+  useEffect(() => {
+    if (!sheetMode) return;
+    if (tlCollapsed) {
+      if (prevTlHeightRef.current === null) prevTlHeightRef.current = tlHeight;
+      const stripH = window.matchMedia("(pointer:coarse)").matches ? 72 : 60;
+      if (tlHeight !== stripH) setTlHeight(stripH);
+    } else if (prevTlHeightRef.current !== null) {
+      setTlHeight(prevTlHeightRef.current);
+      prevTlHeightRef.current = null;
+    }
+    const t = setTimeout(() => fitStage(), 300);
+    return () => clearTimeout(t);
+    // tlHeight sengaja tidak di-deps: efek ini yang menulisnya.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tlCollapsed, sheetMode, fitStage]);
+
+  // Keyboard virtual: sumber kebenaran visualViewport (bukan
+  // window.resize — di iOS keyboard tidak mengubah innerHeight).
+  // Peek naik ke Half saat keyboard muncul; tinggi sheet di-clamp ke
+  // --vv-h−76px lewat CSS; snap semula dikembalikan saat tutup.
+  useEffect(() => {
+    if (!sheetMode) return;
+    const applyKb = (open: boolean, vvh: number) => {
+      document.documentElement.style.setProperty("--vv-h", vvh + "px");
+      if (open && !kbOpenRef.current) {
+        kbOpenRef.current = true;
+        setSheetKbOpen(true);
+        if (sheetSnapRef.current === "peek") {
+          prevSnapRef.current = "peek";
+          setSheetSnap("half");
+        }
+      } else if (!open && kbOpenRef.current) {
+        kbOpenRef.current = false;
+        setSheetKbOpen(false);
+        if (prevSnapRef.current) {
+          setSheetSnap(prevSnapRef.current);
+          prevSnapRef.current = null;
+        }
+      }
+    };
+    const vv = window.visualViewport;
+    if (vv) {
+      const onVv = () => applyKb(window.innerHeight - vv.height - vv.offsetTop > 120, vv.height);
+      vv.addEventListener("resize", onVv);
+      vv.addEventListener("scroll", onVv);
+      onVv();
+      return () => {
+        vv.removeEventListener("resize", onVv);
+        vv.removeEventListener("scroll", onVv);
+        document.documentElement.style.removeProperty("--vv-h");
+      };
+    }
+    const initH = window.innerHeight;
+    const onResize = () => applyKb(window.innerHeight < initH - 120, window.innerHeight);
+    window.addEventListener("resize", onResize);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      document.documentElement.style.removeProperty("--vv-h");
+    };
+  }, [sheetMode]);
+
   // Ketuk objek di preview: bridge di iframe mengirim {__stClick:{x,y}}.
   // Hanya aktif saat tab Objek terbuka; pilihannya tampil di header
   // "Sedang mengedit". Klik di preview tetap memutar/menjeda seperti biasa.
@@ -761,11 +1005,11 @@ export default function Studio() {
       const c = (e.data as { __stClick?: { x: number; y: number } } | null)?.__stClick;
       if (!c || typeof c.x !== "number" || typeof c.y !== "number") return;
       const key = pickObjAt(cur.file, c.x, c.y, avail);
-      if (key) setSelObj(key);
+      if (key) { setSelObj(key); openSheetIfClosed("half"); }
     };
     window.addEventListener("message", onMsg);
     return () => window.removeEventListener("message", onMsg);
-  }, [tab, cur.file, propsAvail]);
+  }, [tab, cur.file, propsAvail, openSheetIfClosed]);
 
   // ---------- mount / load ----------
   const mount = useCallback(
@@ -1418,12 +1662,13 @@ export default function Studio() {
     toast(`"${label}" disimpan di Video Buatan Saya`);
     // Di layar kecil drawer tertutup — buka supaya video baru terlihat.
     if (window.innerWidth <= 1180) {
+      closeSheet();
       setDrawerOpen(true);
       setTimeout(() => {
         document.querySelector(".mine-list .mine-item")?.scrollIntoView({ block: "nearest" });
       }, 320);
     }
-  }, [saveMineLabel, fields, cur, normalize, capsChanged, draftCaps, shotsChanged, draftShots, voTouched, draftVO, propsChanged, draftProps, toast]);
+  }, [saveMineLabel, fields, cur, normalize, capsChanged, draftCaps, shotsChanged, draftShots, voTouched, draftVO, propsChanged, draftProps, toast, closeSheet]);
 
   const openMine = useCallback(
     (entry: MyVideo) => {
@@ -1584,9 +1829,10 @@ export default function Studio() {
       if (kind === "cap" && !caps[i]) return;
       setSel({ kind, i });
       setTab(kind === "shot" ? "shot" : "cap");
+      openSheetIfClosed("half");
       if (seek) goTo((kind === "shot" ? shots[i][0] : caps[i][0]) + 0.01);
     },
-    [shots, caps, goTo]
+    [shots, caps, goTo, openSheetIfClosed]
   );
 
   // ---------- timeline ----------
@@ -1774,7 +2020,7 @@ export default function Studio() {
       a("Kembalikan teks asli", "", resetText, !edited || !ready),
       a("Ekspor MP4…", "E", () => setExpOpen(true)),
       a(theme === "dark" ? "Ganti ke tema terang" : "Ganti ke tema gelap", "D", () => setTheme(theme === "dark" ? "light" : "dark")),
-      a("Panel Project", "T", () => setDrawerOpen((v) => !v)),
+      a("Panel Project", "T", () => { if (!drawerOpenRef.current) closeSheet(); setDrawerOpen((v) => !v); }),
       a("Tur singkat", "", () => setTourStep(0)),
       a("Pintasan keyboard", "?", () => setKeysOpen(true)),
     ].filter((x): x is Item => !!x);
@@ -1827,8 +2073,14 @@ export default function Studio() {
     if (step === 0 && !drawerOpen) {
       if (window.innerWidth <= 1180) tourOpenedDrawerRef.current = true;
       setDrawerOpen(true);
+      closeSheet();
       return; // efek jalan lagi sesudah drawerOpen berubah → ukur ulang
     }
+    // Langkah 2 menunjuk timeline: bila strip terlipat, buka dulu supaya
+    // klip terukur; langkah 3 menunjuk inspector: bila sheet tertutup,
+    // buka ke Half dulu. Efek tour mengukur ulang sesudah 320ms.
+    if (step === 2 && sheetModeRef.current && tlCollapsedRef.current) setTlManual(true);
+    if (step === 3 && sheetModeRef.current && sheetSnapRef.current === "closed") setSheetSnap("half");
     const r = el.getBoundingClientRect();
     const padPx = 6;
     const vw = window.innerWidth;
@@ -1856,7 +2108,7 @@ export default function Studio() {
     const pick = spots.find((s2) => s2[0]);
     if (pick) setTourCardPos({ x: pick[1], y: pick[2] });
     else setTourCardPos({ x: clampX(vw / 2 - cw / 2), y: sy + sh / 2 > vh / 2 ? m : vh - ch - m });
-  }, [drawerOpen]);
+  }, [drawerOpen, closeSheet]);
 
   useEffect(() => {
     if (tourStep === null) return;
@@ -1864,6 +2116,19 @@ export default function Studio() {
       tourOpenedDrawerRef.current = false;
       setDrawerOpen(false);
     }
+    // Langkah 3 dari sheet tertutup: tourPlace memanggil setSheetSnap("half")
+    // lalu langsung mengukur .inspector saat masih tertutup — sorotan jadi
+    // strip 26px di dasar layar (F1). Timeout 320/1000ms tidak bisa
+    // diandalkan: di headless, transisi sheet molor dan getBoundingClientRect
+    // di dalam callback timer masih membaca posisi tertutup bahkan sesudah
+    // 1000ms (compositor kelaparan, bacaan main thread basi). Jadi ukur
+    // ulang sesudah sheet benar-benar settle: transitionend transform pada
+    // sheet (sinyal utama, dari compositor), polling rect stabil via rAF
+    // (pengaman bila transitionend tidak fire), dan batas keras 2,5 dtk.
+    // Masuk ulang ke langkah 3 (sheet sudah Half) tidak memicu waiter:
+    // pengukuran langsung sudah benar.
+    const sheetOpening =
+      tourStep === 3 && sheetModeRef.current && sheetSnapRef.current === "closed";
     tourPlace(tourStep);
     // Drawer terbuka dengan transisi .24s — ukur ulang sesudah settle.
     // Timeout saja tidak cukup (di headless transisi bisa molor): dengarkan
@@ -1873,7 +2138,72 @@ export default function Studio() {
     const drawer = document.querySelector("#drawer");
     const onEnd = () => tourPlace(tourStep);
     drawer?.addEventListener("transitionend", onEnd, { once: true });
-    return () => { clearTimeout(t); clearTimeout(t2); drawer?.removeEventListener("transitionend", onEnd); };
+    // --- waiter settle sheet (hanya bila langkah ini baru saja membukanya) ---
+    const sheet = sheetOpening
+      ? (sheetRef.current ?? (document.querySelector(".inspector") as HTMLElement | null))
+      : null;
+    let raf = 0;
+    let cap: ReturnType<typeof setTimeout> | undefined;
+    let pollDone = false;
+    const stopPoll = () => {
+      if (raf) cancelAnimationFrame(raf);
+      raf = 0;
+    };
+    // transitionend sheet tetap dipasang sampai efek dibersihkan, supaya
+    // koreksi akhir selalu datang dari akhir transisi yang sebenarnya —
+    // sekalipun polling sempat mengukur lebih dulu saat rect kebetulan stabil.
+    const onSheetEnd = (e: TransitionEvent) => {
+      if (e.target !== sheet || e.propertyName !== "transform") return;
+      tourPlace(tourStep);
+    };
+    if (sheet) {
+      sheet.addEventListener("transitionend", onSheetEnd);
+      // Pengaman: ukur ulang saat rect sheet stabil (dua sampel rAF sama
+      // ≤1px dengan jarak ≥150ms) atau paling lambat 2,5 dtk — bila
+      // transitionend tidak pernah fire (transisi terpotong / rAF tertahan).
+      // rAF dipakai (bukan timer) supaya bacaan rect sinkron dengan frame
+      // compositor, bukan nilai basi dari main thread.
+      let lastTop = Infinity;
+      let lastH = Infinity;
+      let stableSince = 0;
+      const poll = (now: number) => {
+        if (pollDone) return;
+        const r = sheet.getBoundingClientRect();
+        if (Math.abs(r.top - lastTop) <= 1 && Math.abs(r.height - lastH) <= 1) {
+          if (!stableSince) stableSince = now;
+          if (now - stableSince >= 150) {
+            pollDone = true;
+            tourPlace(tourStep);
+            return;
+          }
+        } else {
+          stableSince = 0;
+        }
+        lastTop = r.top;
+        lastH = r.height;
+        raf = requestAnimationFrame(poll);
+      };
+      raf = requestAnimationFrame(poll);
+      // Batas keras: ukur ulang SELALU sesudah 2,5 dtk, sekalipun polling
+      // sudah sempat mengukur — polling bisa terkecoh "stabil" saat rect
+      // masih di posisi tertutup (compositor belum memproduksi frame), dan
+      // hanya transitionend / batas keras yang menjamin bacaan sesudah
+      // transisi benar-benar selesai. Pengukuran ulang di sini idempotent
+      // bila sorotan sudah benar.
+      cap = setTimeout(() => {
+        pollDone = true;
+        stopPoll();
+        tourPlace(tourStep);
+      }, 2500);
+    }
+    return () => {
+      clearTimeout(t);
+      clearTimeout(t2);
+      drawer?.removeEventListener("transitionend", onEnd);
+      stopPoll();
+      if (cap) clearTimeout(cap);
+      sheet?.removeEventListener("transitionend", onSheetEnd);
+    };
   }, [tourStep, tourPlace]);
 
   const endTour = useCallback(
@@ -1980,7 +2310,7 @@ export default function Studio() {
         fitTimeline();
         toast("Timeline: fit");
       } else if (k === "e" || k === "E") setExpOpen(true);
-      else if (k === "t" || k === "T") setDrawerOpen((v) => !v);
+      else if (k === "t" || k === "T") { if (!drawerOpen) closeSheet(); setDrawerOpen((v) => !v); }
       else if (k === "r" || k === "R") {
         if (cur) load(cur);
       } else if (k === "?") setKeysOpen(true);
@@ -1991,14 +2321,15 @@ export default function Studio() {
         setCmdSel(0);
       } else if (k === "d" || k === "D") setTheme(theme === "dark" ? "light" : "dark");
       else if (k === "Escape") {
-        // Esc keluar dari fokus viewer dulu sebelum menutup drawer.
-        if (focusView) setFocusView(false);
+        // Urutan tutup: sheet dulu, baru fokus viewer, lalu drawer.
+        if (sheetModeRef.current && sheetSnapRef.current !== "closed") stepDownSnap();
+        else if (focusView) setFocusView(false);
         else if (window.innerWidth <= 1180) setDrawerOpen(false);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [tourStep, cmdOpen, expOpen, keysOpen, applyAll, goTo, currentTime, toggle, activeShot, shots, caps, selectClip, toggleMute, fitTimeline, toast, cur, load, theme, setTheme, len, endTour, focusView]);
+  }, [tourStep, cmdOpen, expOpen, keysOpen, applyAll, goTo, currentTime, toggle, activeShot, shots, caps, selectClip, toggleMute, fitTimeline, toast, cur, load, theme, setTheme, len, endTour, focusView, stepDownSnap, closeSheet, drawerOpen]);
 
   // ---------- derived ----------
   const filtered = useMemo(() => {
@@ -2031,7 +2362,7 @@ export default function Studio() {
       { label: "Ke akhir", hint: "End", run: () => goTo(len - 0.05) },
     ];
     const view = [
-      { label: "Panel Project", hint: "T", run: () => setDrawerOpen((v) => !v) },
+      { label: "Panel Project", hint: "T", run: () => { if (!drawerOpenRef.current) closeSheet(); setDrawerOpen((v) => !v); } },
       { label: "Garis bantu viewer", hint: guides ? "aktif" : "nonaktif", run: () => setGuides((v) => !v) },
       { label: "Fit timeline", hint: "F", run: fitTimeline },
       { sep: true },
@@ -2049,11 +2380,17 @@ export default function Studio() {
   const fieldChanged = (k: keyof TextFields) => normalize(fields)[k] !== def[k];
   const selShot = sel?.kind === "shot" ? shots[sel.i] : undefined;
   const selCap = sel?.kind === "cap" ? caps[sel.i] : undefined;
+  /** Judul konteks di header sheet (bahasa awam, tanpa istilah teknis). */
+  const sheetTitle = tab === "objek"
+    ? activeObj ? `Sedang mengedit: ${activeObj.name}` : "Pilih objek untuk diedit"
+    : tab === "teks" ? `Edit teks — ${cur.label}`
+    : tab === "shot" ? (sel?.kind === "shot" ? `Shot ${sel.i + 1} terpilih` : "Edit shot")
+    : sel?.kind === "cap" ? `Caption #${sel.i + 1}` : "Edit caption";
 
   return (
-    <div className={`app${drawerOpen ? "" : " drawer-closed"}${focusView ? " focus-view" : ""}`}>
+    <div className={`app${drawerOpen ? "" : " drawer-closed"}${focusView ? " focus-view" : ""}${sheetMode ? " sheet-mode" : ""}${sheetMode ? ` sheet-${sheetSnap}` : ""}${sheetKbOpen ? " kb-open" : ""}`}>
       <header className="topbar">
-        <button id="menu" className="tb-icon" aria-label="Buka atau tutup panel Project" aria-expanded={drawerOpen} title="Panel Project (T)" onClick={() => setDrawerOpen((v) => !v)}>
+        <button id="menu" className="tb-icon" aria-label="Buka atau tutup panel Project" aria-expanded={drawerOpen} title="Panel Project (T)" onClick={() => { if (!drawerOpen) closeSheet(); setDrawerOpen((v) => !v); }}>
           <svg viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z" /></svg>
         </button>
         <div className="brand">
@@ -2214,7 +2551,7 @@ export default function Studio() {
               </span>
             )}
             <span className="grow" />
-            <button className="ph-icon" aria-pressed={focusView} aria-label={focusView ? "Keluar dari fokus viewer" : "Fokus viewer — sembunyikan timeline dan transport"} title={focusView ? "Keluar dari fokus viewer (Esc)" : "Fokus viewer — sembunyikan timeline & transport"} onClick={() => { setFocusView((v) => !v); toast(!focusView ? "Fokus viewer — timeline disembunyikan" : "Fokus viewer nonaktif"); }}>
+            <button className="ph-icon" aria-pressed={focusView} aria-label={focusView ? "Keluar dari fokus viewer" : "Fokus viewer — sembunyikan timeline dan transport"} title={focusView ? "Keluar dari fokus viewer (Esc)" : "Fokus viewer — sembunyikan timeline & transport"} onClick={() => { if (!focusView) closeSheet(); setFocusView((v) => !v); toast(!focusView ? "Fokus viewer — timeline disembunyikan" : "Fokus viewer nonaktif"); }}>
               <svg viewBox="0 0 24 24"><path d="M3 5h6v2H5v4H3zm18 0h-6v2h4v4h2zm-18 14h6v-2H5v-4H3zm18 0h-6v-2h4v-4h2z" /></svg>
             </button>
             <button className="ph-icon" aria-pressed={guides} aria-label="Garis bantu" title="Garis bantu (G)" onClick={() => { setGuides((v) => !v); toast(!guides ? "Garis bantu aktif" : "Garis bantu nonaktif"); }}>
@@ -2288,7 +2625,7 @@ export default function Studio() {
           </div>
         </section>
 
-        <section className="panel timeline" id="timelinePanel" aria-label="Timeline" style={{ height: tlHeight }}>
+        <section className={`panel timeline${tlCollapsed ? " tl-collapsed" : ""}`} id="timelinePanel" aria-label="Timeline" style={{ height: tlHeight }}>
           <div
             className="tl-resize"
             title="Ubah tinggi timeline"
@@ -2321,6 +2658,9 @@ export default function Studio() {
             <span className="chip">{fmtTC(time, len)}</span>
             <span className="grow" />
             <div className="tl-tools">
+              <button className="tool tl-fold" title={tlCollapsed ? "Buka timeline untuk memilih klip" : "Lipat timeline"} aria-expanded={!tlCollapsed} onClick={toggleTlFold}>
+                {tlCollapsed ? "▴ Timeline" : "▾ Timeline"}
+              </button>
               <button className="tool on" aria-pressed="true" title="Alat pilih" onClick={() => toast("Alat pilih: klik klip untuk memilih, seret ruler untuk scrub")}>
                 <svg viewBox="0 0 24 24"><path d="M6 3l12 9-5.5 1L15 19l-2.4 1-2.4-6L6 17V3z" /></svg>
               </button>
@@ -2476,7 +2816,23 @@ export default function Studio() {
           </div>
         </section>
 
-        <aside className="panel inspector" aria-label="Inspector">
+        <aside ref={sheetRef} className={`panel inspector${sheetMode ? ` sheet-${sheetSnap}` : ""}`} aria-label="Inspector"
+          onPointerMove={onSheetPointerMove} onPointerUp={onSheetPointerUp} onPointerCancel={onSheetPointerCancel}
+          onFocusCapture={onSheetFocusCapture}>
+          {sheetMode && (
+            <>
+              <div className="sheet-handle" aria-hidden="true" onPointerDown={onSheetDragStart}><i /></div>
+              <div className="sheet-head" onPointerDown={onSheetDragStart}>
+                <button className="sheet-play" aria-label={playing ? "Jeda" : "Putar"} title={playing ? "Jeda (Space)" : "Putar (Space)"}
+                  onClick={(e) => { e.stopPropagation(); toggle(); }} dangerouslySetInnerHTML={{ __html: playing ? ICON.pause : ICON.play }} />
+                <span className="sheet-title">{sheetTitle}{anyDirty && <i className="dirty-dot" aria-label="Ada perubahan belum diterapkan" />}</span>
+                <button className="btn primary sheet-apply" disabled={!ready || !anyDirty || allErrors.length > 0} title="Terapkan semua edit (Ctrl+Enter)"
+                  onClick={(e) => { e.stopPropagation(); applyAll(); }}>Terapkan</button>
+                <button className="sheet-chev" aria-label="Ciutkan sheet" title="Ciutkan sheet"
+                  onClick={(e) => { e.stopPropagation(); stepDownSnap(); }}>⌄</button>
+              </div>
+            </>
+          )}
           <div className="tabs" role="tablist">
             {(["teks", "shot", "cap", "objek"] as const).map((name) => (
               <button
@@ -2828,6 +3184,10 @@ export default function Studio() {
           </div>
         </aside>
       </main>
+
+      {sheetMode && sheetSnap === "closed" && (
+        <button className="sheet-fab" aria-label="Buka panel edit" title="Buka panel edit" onClick={() => setSheetSnap("peek")}>✎ Edit</button>
+      )}
 
       <footer className="statusbar">
         <span className="st-left"><i className="st-dot" data-s={status} /><span>{statusText}</span></span>
