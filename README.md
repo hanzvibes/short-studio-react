@@ -246,3 +246,21 @@ waktu `caps`, lalu mux dengan ffmpeg. Butuh Chromium + ffmpeg + internet
   (klik ☰ → drawer muncul, x=4, visible) dan 1440px (klik ☰ → drawer
   hilang, `display:none`). Bukti: `verification/drawer-mobile390-open.png`,
   `verification/drawer-desktop1440-closed.png`.
+- **Perbaikan mobile/tablet 2026-11-17** (menindaklanjuti audit
+  `verification/mobile-audit-2026-11-17.md` — 1 BLOCKER, 1 MAJOR, 10 MINOR,
+  semua fixed; laporan + bukti screenshot:
+  `verification/mobile-fix-2026-11-17.md`): tab inspector di ≤900px tidak
+  lagi tertutup panel timeline (baris grid timeline dibuat `auto` di ≤900px
+  dan ≤600px + `.inspector` ber-z-index); toolbar timeline muat di 390px
+  (id `tlZoomOut`/`tlZoom`/`tlZoomIn`/`tlFit` ditambahkan sehingga aturan
+  sembunyi zoom ≤600px berlaku); target sentuh ≥44px di layar ≤1180px;
+  nama track tidak terpotong (kolom 140/112/100px); tour langkah 1 membuka
+  drawer dulu lalu menutupnya lagi; transport muat di HP landscape
+  (baris viewer 250px bila tinggi ≤500px); panah keyboard tidak men-seek
+  saat slider zoom fokus; error validasi tampil inline di bawah baris yang
+  salah; drawer terbuka sesudah Simpan sebagai video baru; header
+  "Video Buatan Saya" satu baris; stage tablet landscape ~12–14% lebih
+  besar; tombol Terapkan/Reset semua pane punya id; dialog (`<dialog open>`
+  non-modal) diberi `z-index:80` supaya tidak tertutup konten workspace
+  yang di-scroll. Template asli tidak disentuh; `npm run build` hijau;
+  0 console error di semua run verifikasi.

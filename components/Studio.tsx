@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   BRIDGE,
   applyEdits,
@@ -296,7 +296,7 @@ export default function Studio() {
     if (!canvas || !stage) return;
     const r = canvas.getBoundingClientRect();
     if (r.width < 20 || r.height < 20) return;
-    const padPx = window.innerWidth <= 900 ? 8 : 22;
+    const padPx = window.innerWidth <= 900 ? 8 : window.innerWidth <= 1180 ? 14 : 22;
     const availW = Math.max(60, r.width - padPx * 2);
     const availH = Math.max(80, r.height - padPx * 2);
     let h = Math.min(availH, (availW * 16) / 9);
@@ -654,6 +654,33 @@ export default function Studio() {
     () => [...capVal.errors, ...shotVal.errors, ...propVal.errors, ...Object.values(arrayErr)],
     [capVal, shotVal, propVal, arrayErr]
   );
+  // Error per baris — dipakai penanda inline di dekat field yang salah
+  // (temuan audit: pesan di bawah daftar tidak terlihat saat mengedit).
+  // Format pesan selalu "Caption #N: …" / "Shot #N: …" / "<id prop>: …".
+  const capErrByRow = useMemo(() => {
+    const m: Record<number, string[]> = {};
+    capVal.errors.forEach((e) => {
+      const mt = /^Caption #(\d+):/.exec(e);
+      if (mt) (m[+mt[1] - 1] ??= []).push(e);
+    });
+    return m;
+  }, [capVal]);
+  const shotErrByRow = useMemo(() => {
+    const m: Record<number, string[]> = {};
+    shotVal.errors.forEach((e) => {
+      const mt = /^Shot #(\d+):/.exec(e);
+      if (mt) (m[+mt[1] - 1] ??= []).push(e);
+    });
+    return m;
+  }, [shotVal]);
+  const propErrById = useMemo(() => {
+    const m: Record<string, string[]> = {};
+    propVal.errors.forEach((e) => {
+      const mt = /^([\w.]+):/.exec(e);
+      if (mt && propsAvail.some((p) => p.def.id === mt[1])) (m[mt[1]] ??= []).push(e);
+    });
+    return m;
+  }, [propVal, propsAvail]);
   const allWarnings = useMemo(() => [...capVal.warnings, ...shotVal.warnings, ...propVal.warnings], [capVal, shotVal, propVal]);
   const voFollowNote = useMemo(() => {
     if (!capsChanged || voTouched) return "";
@@ -809,6 +836,13 @@ export default function Studio() {
     setActiveMineId(entry.id);
     setSaveMineOpen(false);
     toast(`"${label}" disimpan di Video Buatan Saya`);
+    // Di layar kecil drawer tertutup — buka supaya video baru terlihat.
+    if (window.innerWidth <= 1180) {
+      setDrawerOpen(true);
+      setTimeout(() => {
+        document.querySelector(".mine-list .mine-item")?.scrollIntoView({ block: "nearest" });
+      }, 320);
+    }
   }, [saveMineLabel, fields, cur, normalize, capsChanged, draftCaps, shotsChanged, draftShots, voTouched, draftVO, propsChanged, draftProps, toast]);
 
   const openMine = useCallback(
@@ -1168,19 +1202,31 @@ export default function Studio() {
   }, [st, muted, toast]);
 
   // ---------- tour ----------
+  // Tour langkah 0 menunjuk #drawer. Di layar <=1180px drawer tertutup
+  // saat load, jadi buka dulu (dicatat di ref) dan tutup lagi saat tour
+  // lanjut ke langkah berikut / selesai — kalau tidak, sorotan menunjuk
+  // panel yang sedang off-canvas dan kartu menggantung tanpa target.
+  const tourOpenedDrawerRef = useRef(false);
   const tourPlace = useCallback((step: number) => {
     const s = TOUR_STEPS[step];
     const el = document.querySelector(s.el) as HTMLElement | null;
     if (!el) return;
-    if (step === 0 && window.innerWidth > 1180 && !drawerOpen) setDrawerOpen(true);
+    if (step === 0 && !drawerOpen) {
+      if (window.innerWidth <= 1180) tourOpenedDrawerRef.current = true;
+      setDrawerOpen(true);
+      return; // efek jalan lagi sesudah drawerOpen berubah → ukur ulang
+    }
     const r = el.getBoundingClientRect();
     const padPx = 6;
     const vw = window.innerWidth;
     const vh = window.innerHeight;
     const sx = Math.max(4, r.left - padPx);
     const sy = Math.max(4, r.top - padPx);
-    const sw = Math.min(vw - 8, r.right + padPx) - sx;
-    const sh = Math.min(vh - 8, r.bottom + padPx) - sy;
+    // Dijepit ≥0: bila drawer masih bergeser (transisi .24s), r.right bisa
+    // di kiri sx sehingga lebar negatif — nilai negatif membuat deklarasi
+    // width inline tidak valid dan sorotan hilang sampai diukur ulang.
+    const sw = Math.max(0, Math.min(vw - 8, r.right + padPx) - sx);
+    const sh = Math.max(0, Math.min(vh - 8, r.bottom + padPx) - sy);
     setTourRect({ x: sx, y: sy, w: sw, h: sh });
     const cw = 330;
     const ch = 170;
@@ -1200,13 +1246,31 @@ export default function Studio() {
   }, [drawerOpen]);
 
   useEffect(() => {
-    if (tourStep !== null) tourPlace(tourStep);
+    if (tourStep === null) return;
+    if (tourStep !== 0 && tourOpenedDrawerRef.current) {
+      tourOpenedDrawerRef.current = false;
+      setDrawerOpen(false);
+    }
+    tourPlace(tourStep);
+    // Drawer terbuka dengan transisi .24s — ukur ulang sesudah settle.
+    // Timeout saja tidak cukup (di headless transisi bisa molor): dengarkan
+    // juga transitionend drawer, sekali saja, plus pengaman 1 dtk.
+    const t = setTimeout(() => tourPlace(tourStep), 320);
+    const t2 = setTimeout(() => tourPlace(tourStep), 1000);
+    const drawer = document.querySelector("#drawer");
+    const onEnd = () => tourPlace(tourStep);
+    drawer?.addEventListener("transitionend", onEnd, { once: true });
+    return () => { clearTimeout(t); clearTimeout(t2); drawer?.removeEventListener("transitionend", onEnd); };
   }, [tourStep, tourPlace]);
 
   const endTour = useCallback(
     (done: boolean) => {
       setTourStep(null);
       setTourRect(null);
+      if (tourOpenedDrawerRef.current) {
+        tourOpenedDrawerRef.current = false;
+        setDrawerOpen(false);
+      }
       try {
         localStorage.setItem("ss.tour", "1");
       } catch { /* ignore */ }
@@ -1260,6 +1324,9 @@ export default function Studio() {
         return;
       }
       if (e.ctrlKey || e.metaKey) return;
+      // Slider yang sedang fokus (mis. zoom timeline): biarkan panah /
+      // Home / End mengatur slider secara native — jangan seek playhead.
+      if (tag === "input" && (el as HTMLInputElement).type === "range") return;
       const onBtn = tag === "button" || tag === "a" || (el as HTMLInputElement).type === "checkbox";
       const k = e.key;
       if (e.altKey && (k === "ArrowRight" || k === "ArrowLeft")) {
@@ -1499,7 +1566,7 @@ export default function Studio() {
               <span>Video Buatan Saya</span>
               <span className="badge">{mine.length}</span>
               <span className="grow" />
-              <button className="btn ghost small" title="Simpan video saat ini sebagai video baru" onClick={() => { setSaveMineLabel(fields.title.trim() || cur.label); setSaveMineOpen(true); }}>+ Simpan saat ini</button>
+              <button className="btn ghost small" title="Simpan video saat ini sebagai video baru" onClick={() => { setSaveMineLabel(fields.title.trim() || cur.label); setSaveMineOpen(true); }}>+ Simpan</button>
             </div>
             {mine.length === 0 ? (
               <p className="hint" style={{ padding: "6px 9px" }}>Belum ada. Edit template apa pun lalu simpan sebagai video baru — template asli tidak pernah diubah.</p>
@@ -1632,10 +1699,10 @@ export default function Studio() {
                 <svg viewBox="0 0 24 24"><path d="M5 3v7a7 7 0 0 0 14 0V3h-4v7a3 3 0 0 1-6 0V3H5zm0 9v3h4v-3H5zm10 0v3h4v-3h-4z" /></svg>
               </button>
               <span className="tool-sep" />
-              <button className="tool" title="Zoom out" onClick={() => setTimelineZoom(tlRange - 10)}>−</button>
-              <input type="range" min={0} max={100} value={tlRange} aria-label="Zoom timeline" onChange={(e) => setTimelineZoom(+e.target.value)} />
-              <button className="tool" title="Zoom in" onClick={() => setTimelineZoom(tlRange + 10)}>+</button>
-              <button className="tool" title="Fit timeline" onClick={() => { fitTimeline(); }}>
+              <button className="tool" id="tlZoomOut" title="Zoom out" onClick={() => setTimelineZoom(tlRange - 10)}>−</button>
+              <input type="range" id="tlZoom" min={0} max={100} value={tlRange} aria-label="Zoom timeline" onChange={(e) => setTimelineZoom(+e.target.value)} />
+              <button className="tool" id="tlZoomIn" title="Zoom in" onClick={() => setTimelineZoom(tlRange + 10)}>+</button>
+              <button className="tool" id="tlFit" title="Fit timeline" onClick={() => { fitTimeline(); }}>
                 <svg viewBox="0 0 24 24"><path d="M4 9V4h5v2H6v3H4zm16 0h-2V6h-3V4h5v5zM4 15v5h5v-2H6v-3H4zm16 0h-2v3h-3v2h5v-5z" /></svg>
               </button>
             </div>
@@ -1881,25 +1948,28 @@ export default function Studio() {
                         return Number.isNaN(n) ? 0 : n;
                       };
                       return (
-                        <div key={i} className={`edit-shot${sel?.kind === "shot" && sel.i === i ? " sel" : ""}`} onClick={() => selectClip("shot", i, false)}>
-                          <div className="edit-shot-h">
-                            <span className="k">{pad(i + 1)}</span><b>Shot {i + 1}</b>
-                            <span className="at">{fmt1(end - s[0])}</span>
+                        <Fragment key={i}>
+                          <div className={`edit-shot${sel?.kind === "shot" && sel.i === i ? " sel" : ""}${shotErrByRow[i] ? " err" : ""}`} onClick={() => selectClip("shot", i, false)}>
+                            <div className="edit-shot-h">
+                              <span className="k">{pad(i + 1)}</span><b>Shot {i + 1}</b>
+                              <span className="at">{fmt1(end - s[0])}</span>
+                            </div>
+                            <label className="edit-f">Mulai (detik)
+                              <input type="number" step={0.1} min={0} max={len} value={s[0]} aria-label={`Shot ${i + 1} mulai`}
+                                onClick={(e) => e.stopPropagation()} onChange={(e) => upd(0, 0, num(e))} />
+                            </label>
+                            <div className="edit-nums">
+                              {(["Kam X", "Kam Y", "Kam Z", "Lihat X", "Lihat Y", "Lihat Z"] as const).map((lbl, k) => (
+                                <label key={k} className="edit-f">{lbl}
+                                  <input type="number" step={0.1} value={k < 3 ? s[1][k] : s[2][k - 3]} aria-label={`Shot ${i + 1} ${lbl}`}
+                                    onClick={(e) => e.stopPropagation()}
+                                    onChange={(e) => upd(k < 3 ? 1 : 2, k < 3 ? k : k - 3, num(e))} />
+                                </label>
+                              ))}
+                            </div>
                           </div>
-                          <label className="edit-f">Mulai (detik)
-                            <input type="number" step={0.1} min={0} max={len} value={s[0]} aria-label={`Shot ${i + 1} mulai`}
-                              onClick={(e) => e.stopPropagation()} onChange={(e) => upd(0, 0, num(e))} />
-                          </label>
-                          <div className="edit-nums">
-                            {(["Kam X", "Kam Y", "Kam Z", "Lihat X", "Lihat Y", "Lihat Z"] as const).map((lbl, k) => (
-                              <label key={k} className="edit-f">{lbl}
-                                <input type="number" step={0.1} value={k < 3 ? s[1][k] : s[2][k - 3]} aria-label={`Shot ${i + 1} ${lbl}`}
-                                  onClick={(e) => e.stopPropagation()}
-                                  onChange={(e) => upd(k < 3 ? 1 : 2, k < 3 ? k : k - 3, num(e))} />
-                              </label>
-                            ))}
-                          </div>
-                        </div>
+                          {shotErrByRow[i]?.map((e, k) => <p key={k} className="valid-err row-err">{e}</p>)}
+                        </Fragment>
                       );
                     }) : <p className="hint" style={{ padding: 6 }}>Belum ada shot.</p>}
                   </div>
@@ -1907,8 +1977,8 @@ export default function Studio() {
                 {shotVal.errors.map((e, k) => <p key={k} className="valid-err">{e}</p>)}
                 {shotVal.warnings.map((w, k) => <p key={k} className="valid-warn">{w}</p>)}
                 <div className="insp-actions">
-                  <button className="btn primary" disabled={!ready || !anyDirty || allErrors.length > 0} title="Terapkan semua edit (Ctrl+Enter)" onClick={applyAll}>Terapkan semua edit</button>
-                  <button className="btn ghost" disabled={!ready || !shotsChanged} title="Kembalikan shot asli" onClick={resetShots}>Kembalikan</button>
+                  <button id="apply-shot" className="btn primary" disabled={!ready || !anyDirty || allErrors.length > 0} title="Terapkan semua edit (Ctrl+Enter)" onClick={applyAll}>Terapkan semua edit</button>
+                  <button id="reset-shot" className="btn ghost" disabled={!ready || !shotsChanged} title="Kembalikan shot asli" onClick={resetShots}>Kembalikan</button>
                 </div>
                 <p className="hint">Edit tersimpan di state dulu — klik Terapkan (Ctrl+Enter) untuk me-mount ulang preview dengan shot baru.</p>
               </div>
@@ -1944,7 +2014,8 @@ export default function Studio() {
                     {origCaps === null ? (
                       <p className="hint" style={{ padding: 6 }}>Caption template ini tidak bisa di-parse (format berbeda), jadi edit caption dinonaktifkan untuk template ini.</p>
                     ) : draftCaps.length ? draftCaps.map((x, i) => (
-                      <div key={i} className={`edit-cap${activeCap === i ? " on" : ""}${sel?.kind === "cap" && sel.i === i ? " sel" : ""}`} onClick={() => selectClip("cap", i, false)}>
+                      <Fragment key={i}>
+                      <div className={`edit-cap${activeCap === i ? " on" : ""}${sel?.kind === "cap" && sel.i === i ? " sel" : ""}${capErrByRow[i] ? " err" : ""}`} onClick={() => selectClip("cap", i, false)}>
                         <span className="k">{pad(i + 1)}</span>
                         <span className="spk" style={{ background: SPK[x[3] ?? 2] || SPK[2] }} />
                         <input className="cap-text" value={x[2]} aria-label={`Teks caption ${i + 1}`}
@@ -1966,6 +2037,8 @@ export default function Studio() {
                           </select>
                         )}
                       </div>
+                      {capErrByRow[i]?.map((e, k) => <p key={k} className="valid-err row-err">{e}</p>)}
+                      </Fragment>
                     )) : <p className="hint" style={{ padding: 6 }}>Belum ada caption.</p>}
                     {!hasSpeaker && origCaps !== null && (
                       <p className="hint">Template ini tidak punya kolom pembicara (caps arity 3).</p>
@@ -1993,8 +2066,8 @@ export default function Studio() {
                 {capVal.errors.map((e, k) => <p key={k} className="valid-err">{e}</p>)}
                 {capVal.warnings.map((w, k) => <p key={k} className="valid-warn">{w}</p>)}
                 <div className="insp-actions">
-                  <button className="btn primary" disabled={!ready || !anyDirty || allErrors.length > 0} title="Terapkan semua edit (Ctrl+Enter)" onClick={applyAll}>Terapkan semua edit</button>
-                  <button className="btn ghost" disabled={!ready || (!capsChanged && !voTouched)} title="Kembalikan caption asli" onClick={resetCaps}>Kembalikan</button>
+                  <button id="apply-cap" className="btn primary" disabled={!ready || !anyDirty || allErrors.length > 0} title="Terapkan semua edit (Ctrl+Enter)" onClick={applyAll}>Terapkan semua edit</button>
+                  <button id="reset-cap" className="btn ghost" disabled={!ready || (!capsChanged && !voTouched)} title="Kembalikan caption asli" onClick={resetCaps}>Kembalikan</button>
                 </div>
                 <p className="hint">Edit tersimpan di state dulu — klik Terapkan (Ctrl+Enter) untuk me-mount ulang preview dengan caption baru.</p>
               </div>
@@ -2011,7 +2084,8 @@ export default function Studio() {
                         {items.map(({ def }) => {
                           const v = draftProps[def.id];
                           return (
-                            <label key={def.id} className="prop-row">
+                            <Fragment key={def.id}>
+                            <label className={`prop-row${propErrById[def.id] ? " err" : ""}`}>
                               <span>{def.label}</span>
                               {def.kind === "color" ? (
                                 <span className="prop-color">
@@ -2033,6 +2107,8 @@ export default function Studio() {
                                   onChange={(e) => { const n = parseFloat(e.target.value); setDraftProps((p) => ({ ...p, [def.id]: Number.isNaN(n) ? 0 : n })); }} />
                               )}
                             </label>
+                            {propErrById[def.id]?.map((e, k) => <p key={k} className="valid-err row-err">{e}</p>)}
+                            </Fragment>
                           );
                         })}
                       </div>
@@ -2052,8 +2128,8 @@ export default function Studio() {
                 {propVal.errors.map((e, k) => <p key={k} className="valid-err">{e}</p>)}
                 {propVal.warnings.map((w, k) => <p key={k} className="valid-warn">{w}</p>)}
                 <div className="insp-actions">
-                  <button className="btn primary" disabled={!ready || !anyDirty || allErrors.length > 0} title="Terapkan semua edit (Ctrl+Enter)" onClick={applyAll}>Terapkan semua edit</button>
-                  <button className="btn ghost" disabled={!ready || !propsChanged} title="Kembalikan props asli" onClick={resetProps}>Kembalikan</button>
+                  <button id="apply-props" className="btn primary" disabled={!ready || !anyDirty || allErrors.length > 0} title="Terapkan semua edit (Ctrl+Enter)" onClick={applyAll}>Terapkan semua edit</button>
+                  <button id="reset-props" className="btn ghost" disabled={!ready || !propsChanged} title="Kembalikan props asli" onClick={resetProps}>Kembalikan</button>
                 </div>
                 <p className="hint">Props ditulis ulang sebagai nilai literal di HTML preview (pola yang sama seperti teks/caption). Jarak antar maskot dijaga &gt;0.1 dan monitor 2.4 butuh jarak pusat ≥2.6 (SKILL.md). Warna aksen juga menyinkronkan warna bubble caption (CC). Prop array (skor papan, kurva tangki, sticky notes, spawn/ketapel, jendela/baris ketik) diedit sebagai teks JSON — nilai tidak valid menampilkan error dan menahan Terapkan.</p>
               </div>
