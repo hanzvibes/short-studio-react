@@ -3,20 +3,39 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   BRIDGE,
+  applyEdits,
   clamp,
+  crossCheckProps,
   fmt,
   fmt1,
   fmtTC,
   pad,
+  parseCaps,
   parseDefaults,
+  parseProps,
+  parseShots,
+  parseVO,
+  setCaps as writeCaps,
+  setProps as writeProps,
+  setShots as writeShots,
   setText,
+  setVO as writeVO,
   slug,
   SPK,
   TEMPLATES,
-  type Shot,
+  validateCaps,
+  validateProps,
+  validateShots,
+  voKind,
   type Cap,
+  type EditSpec,
+  type PropDef,
+  type PropValue,
+  type PropValues,
+  type Shot,
   type TemplateEntry,
   type TextFields,
+  type VoKind,
 } from "../lib/studio";
 
 const FPS = 60;
@@ -30,11 +49,50 @@ const ICON = {
 type Sel = { kind: "shot" | "cap"; i: number } | null;
 type Status = "load" | "ok" | "err";
 
+/** Edit lengkap per template (teks + caps + shots + VO + props), tersimpan
+ *  di localStorage kunci "ss.edits.v1". Hanya selisih dari aslinya yang
+ *  disimpan (caps/shots/props bila berubah; vo hanya bila diedit manual). */
+interface FullEdit {
+  text?: TextFields;
+  caps?: Cap[];
+  shots?: Shot[];
+  vo?: string[];
+  voTouched?: boolean;
+  props?: PropValues;
+}
+
+/** Entri "Video Buatan Saya": video baru dari satu template asal + edit
+ *  tersimpan. TIDAK PERNAH menimpa 12 template asli. localStorage "ss.mine.v1". */
+interface MyVideo {
+  id: string;
+  label: string;
+  file: string;
+  title: string;
+  sub: string;
+  end: string;
+  caps?: Cap[];
+  shots?: Shot[];
+  vo?: string[];
+  props?: PropValues;
+  createdAt: number;
+}
+
+const EDITS_KEY = "ss.edits.v1";
+const MINE_KEY = "ss.mine.v1";
+
+const slugify = (s: string) =>
+  s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "video-saya";
+
 const TOUR_STEPS = [
   { el: "#drawer", t: "Project bin", p: "Semua 12 short ada di panel kiri. Cari lewat kolom pencarian; teks yang sudah diedit ditandai titik biru." },
   { el: ".viewer", t: "Viewer 9:16", p: "Komposisi 1080×1920. Klik preview atau Space untuk memutar. Garis bantu aman bisa dinyalakan lewat ikon grid atau tombol G." },
   { el: ".timeline", t: "Timeline ala NLE", p: "V1 berisi shot, T1 caption per pembicara, A1 narasi. Klik klip untuk memilih, seret ruler untuk scrub, dan atur zoom di kanan atas." },
-  { el: ".inspector", t: "Inspector", p: "Ubah judul, subjudul, dan end card di tab Teks, lalu Terapkan (Ctrl+Enter). Tab Shot dan Caption menampilkan properti klip yang dipilih." },
+  { el: ".inspector", t: "Inspector", p: "Ubah judul, subjudul, dan end card di tab Teks, lalu Terapkan (Ctrl+Enter). Tab Shot, Caption, dan Props menampilkan klip dan properti yang bisa diedit — semua diterapkan bersamaan." },
   { el: ".tb-actions", t: "Perintah cepat", p: "Ctrl+K membuka palet perintah, D mengganti tema, dan Ekspor membuatkan perintah MP4. Tekan ? untuk semua pintasan." },
 ];
 
@@ -48,6 +106,45 @@ export default function Studio() {
   const [fields, setFields] = useState<TextFields>({ title: "", sub: "", end: "" });
   const [applied, setApplied] = useState<TextFields>({ title: "", sub: "", end: "" });
   const [edits, setEdits] = useState<Record<string, TextFields>>({});
+  const [fullEdits, setFullEdits] = useState<Record<string, FullEdit>>(() => {
+    try {
+      const fe = JSON.parse(localStorage.getItem(EDITS_KEY) || "{}");
+      return fe && typeof fe === "object" ? fe : {};
+    } catch {
+      return {};
+    }
+  });
+  const [mine, setMine] = useState<MyVideo[]>(() => {
+    try {
+      const mn = JSON.parse(localStorage.getItem(MINE_KEY) || "[]");
+      return Array.isArray(mn) ? mn : [];
+    } catch {
+      return [];
+    }
+  });
+  const [activeMineId, setActiveMineId] = useState<string | null>(null);
+  const [saveMineOpen, setSaveMineOpen] = useState(false);
+  const [saveMineLabel, setSaveMineLabel] = useState("");
+  // Draft edit caption/shot/props (state edit, bukan langsung ke template).
+  const [origCaps, setOrigCaps] = useState<Cap[] | null>(null);
+  const [origShots, setOrigShots] = useState<Shot[] | null>(null);
+  const [origVO, setOrigVO] = useState<string[] | null>(null);
+  const [voKindState, setVoKindState] = useState<VoKind>("none");
+  const [hasSpeaker, setHasSpeaker] = useState(false);
+  const [draftCaps, setDraftCaps] = useState<Cap[]>([]);
+  const [draftShots, setDraftShots] = useState<Shot[]>([]);
+  const [draftVO, setDraftVO] = useState<string[] | null>(null);
+  const [voTouched, setVoTouched] = useState(false);
+  const [origProps, setOrigProps] = useState<PropValues>({});
+  const [draftProps, setDraftProps] = useState<PropValues>({});
+  const [propsAvail, setPropsAvail] = useState<{ def: PropDef; value: PropValue }[]>([]);
+  const [propsUnavail, setPropsUnavail] = useState<{ def: PropDef; reason: string }[]>([]);
+  /** Teks mentah field JSON untuk prop array (tank.curve, rival.notes,
+   *  dsb.) + error parse/validasi per prop. Nilai yang lolos validasi
+   *  masuk draftProps; yang tidak lolos menahan Terapkan (lihat arrayErr
+   *  di allErrors). */
+  const [arrayText, setArrayText] = useState<Record<string, string>>({});
+  const [arrayErr, setArrayErr] = useState<Record<string, string>>({});
   const [len, setLen] = useState(30);
   const [shots, setShots] = useState<Shot[]>([]);
   const [caps, setCaps] = useState<Cap[]>([]);
@@ -55,7 +152,7 @@ export default function Studio() {
   const [muted, setMuted] = useState(true);
   const [loopOn, setLoopOn] = useState(true);
   const [sel, setSel] = useState<Sel>(null);
-  const [tab, setTab] = useState<"teks" | "shot" | "cap">("teks");
+  const [tab, setTab] = useState<"teks" | "shot" | "cap" | "props">("teks");
   const [time, setTime] = useState(0);
   const [ready, setReady] = useState(false);
   const [status, setStatus] = useState<Status>("load");
@@ -101,8 +198,9 @@ export default function Studio() {
   const scrubRef = useRef<{ was: boolean } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tourShownRef = useRef(false);
-  const stateRef = useRef({ cur, fields, def, applied, base, shots, caps, len, muted, playing });
-  stateRef.current = { cur, fields, def, applied, base, shots, caps, len, muted, playing };
+  const pendingMineRef = useRef<MyVideo | null>(null);
+  const stateRef = useRef({ cur, fields, def, applied, base, shots, caps, len, muted, playing, draftCaps, draftShots, draftVO, voTouched, voKindState, origCaps, origShots, draftProps });
+  stateRef.current = { cur, fields, def, applied, base, shots, caps, len, muted, playing, draftCaps, draftShots, draftVO, voTouched, voKindState, origCaps, origShots, draftProps };
   playingRef.current = playing;
   lenRef.current = len;
   loopRef.current = loopOn;
@@ -248,7 +346,32 @@ export default function Studio() {
       });
       setApplied(f);
       const lite = window.matchMedia("(pointer:coarse)").matches;
-      const out = setText(s.base, changed)
+      // Terapkan SEMUA edit ke string srcdoc (bukan hanya state React):
+      // teks, lalu caps, shots, VO, dan props — via fungsi yang sama dengan
+      // scripts/apply-edit.mjs, supaya hasil unduhan .html identik.
+      let out = setText(s.base, changed);
+      const capsChanged = s.origCaps !== null && JSON.stringify(s.draftCaps) !== JSON.stringify(s.origCaps);
+      if (s.origCaps !== null && s.draftCaps.length) {
+        const r = writeCaps(out, s.draftCaps);
+        if (r.ok) out = r.html;
+      }
+      if (s.origShots !== null && s.draftShots.length) {
+        const r = writeShots(out, s.draftShots);
+        if (r.ok) out = r.html;
+      }
+      if (s.voTouched && s.draftVO) {
+        const r = writeVO(out, s.draftVO);
+        if (r.ok) out = r.html;
+      } else if (capsChanged && s.voKindState === "literal") {
+        // VO mengikuti teks caption baru (peringatan tampil di tab Caption).
+        const r = writeVO(out, s.draftCaps.map((c) => c[2]));
+        if (r.ok) out = r.html;
+      }
+      if (Object.keys(s.draftProps).length) {
+        const r = writeProps(out, s.cur.file, s.draftProps);
+        if (r.ok) out = r.html;
+      }
+      out = out
         .replace("</body>", BRIDGE + "</body>")
         .replace(
           "<head>",
@@ -360,13 +483,57 @@ export default function Studio() {
       if (id !== loadIdRef.current) return;
       const d = parseDefaults(html, t);
       setDef(d);
+      // Edit tersimpan: entri "Video Buatan Saya" yang sedang dibuka menang
+      // atas edit per-template, yang menang atas teks asli.
+      const mineOverride = pendingMineRef.current && pendingMineRef.current.file === t.file ? pendingMineRef.current : null;
+      pendingMineRef.current = null;
+      setActiveMineId(mineOverride ? mineOverride.id : null);
+      const fe = fullEdits[t.file];
       const saved = edits[t.file];
-      const f = saved || d;
+      const f = mineOverride
+        ? { title: mineOverride.title, sub: mineOverride.sub, end: mineOverride.end }
+        : fe?.text || saved || d;
       setFields(f);
-      setApplied(saved ? normalize(f) : { ...d });
+      setApplied(mineOverride || fe?.text || saved ? normalize(f) : { ...d });
+      // Caps / shots / VO / props asli dari HTML template.
+      const pc = parseCaps(html);
+      const ps = parseShots(html);
+      const pv = parseVO(html);
+      const vk = voKind(html);
+      const pp = parseProps(html, t.file);
+      setOrigCaps(pc);
+      setOrigShots(ps);
+      setOrigVO(pv);
+      setVoKindState(vk);
+      setHasSpeaker(!!pc && pc.some((c) => c.length === 4));
+      setPropsAvail(pp.filter((p) => p.available && p.value !== undefined).map((p) => ({ def: p.def, value: p.value as PropValue })));
+      setPropsUnavail(pp.filter((p) => !p.available).map((p) => ({ def: p.def, reason: p.reason || "Tidak tersedia di template ini." })));
+      const origP: PropValues = {};
+      pp.forEach((p) => {
+        if (p.available && p.value !== undefined) origP[p.def.id] = p.value;
+      });
+      setOrigProps(origP);
+      setDraftCaps(mineOverride?.caps ?? fe?.caps ?? pc ?? []);
+      setDraftShots(mineOverride?.shots ?? fe?.shots ?? ps ?? []);
+      setDraftVO(mineOverride?.vo ?? fe?.vo ?? pv ?? null);
+      setVoTouched(!!(mineOverride?.vo || fe?.voTouched));
+      const dp = mineOverride?.props ?? fe?.props ?? origP;
+      setDraftProps(dp);
+      // Teks mentah field JSON prop array dari nilai yang sama (bukan dari
+      // origP saja — edit tersimpan / Video Buatan Saya bisa membawa nilai
+      // array yang sudah diubah).
+      const at: Record<string, string> = {};
+      pp.forEach((p) => {
+        if (p.def.kind === "array" && p.available) {
+          const v = (dp as PropValues)[p.def.id] ?? p.value;
+          if (v !== undefined) at[p.def.id] = JSON.stringify(v);
+        }
+      });
+      setArrayText(at);
+      setArrayErr({});
       setBase(html);
     },
-    [edits, normalize, toast]
+    [edits, fullEdits, normalize, toast]
   );
 
   // mount setiap kali base berubah (template selesai dimuat)
@@ -379,6 +546,27 @@ export default function Studio() {
     if (!base) baseRef.current = "";
   }, [base, mount]);
 
+  /** Simpan edit saat ini (teks+caps+shots+vo+props) ke ss.edits.v1. */
+  const saveCurrentFullEdit = useCallback(() => {
+    const s = stateRef.current;
+    if (!s.base || !s.cur) return;
+    const fe: FullEdit = {};
+    const n = normalize(s.fields);
+    if ((["title", "sub", "end"] as const).some((k) => n[k] !== s.def[k])) fe.text = { ...n };
+    if (s.origCaps !== null && JSON.stringify(s.draftCaps) !== JSON.stringify(s.origCaps)) fe.caps = s.draftCaps.map((c) => [...c] as Cap);
+    if (s.origShots !== null && JSON.stringify(s.draftShots) !== JSON.stringify(s.origShots))
+      fe.shots = s.draftShots.map((x) => [x[0], [...x[1]], [...x[2]]] as Shot);
+    if (s.voTouched && s.draftVO) fe.vo = [...s.draftVO];
+    if (s.voTouched) fe.voTouched = true;
+    if (JSON.stringify(s.draftProps) !== JSON.stringify(origProps)) fe.props = { ...s.draftProps };
+    setFullEdits((prev) => {
+      const next = { ...prev };
+      if (Object.keys(fe).length) next[s.cur.file] = fe;
+      else delete next[s.cur.file];
+      return next;
+    });
+  }, [normalize, origProps]);
+
   const openTemplate = useCallback(
     (t: TemplateEntry) => {
       if (cur === t && base) return;
@@ -389,7 +577,10 @@ export default function Studio() {
           else delete next[cur.file];
           return next;
         });
+        saveCurrentFullEdit();
       }
+      // Buka biasa (bukan via Video Buatan Saya) = lepas dari entri mine.
+      if (!pendingMineRef.current) setActiveMineId(null);
       setCur(t);
       try {
         localStorage.setItem("ss.last", slug(t));
@@ -398,7 +589,7 @@ export default function Studio() {
       document.title = t.label + " · Short Studio";
       load(t);
     },
-    [cur, base, hasChanges, normalize, fields, load]
+    [cur, base, hasChanges, normalize, fields, load, saveCurrentFullEdit]
   );
 
   // init sekali: hash / last template, tema, zoom
@@ -421,11 +612,75 @@ export default function Studio() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const applyText = useCallback(() => {
-    if (!base || !ready || !dirty) return;
+  // Persistensi edit per-template (ss.edits.v1) — kunci baru, tidak
+  // menimpa ss.drawer / ss.theme / ss.last yang sudah ada. Nilai awal
+  // dibaca lazy dari localStorage (lihat useState di atas), jadi efek ini
+  // tidak pernah menimpa simpanan lama dengan {}.
+  useEffect(() => {
+    try {
+      localStorage.setItem(EDITS_KEY, JSON.stringify(fullEdits));
+    } catch { /* private mode */ }
+  }, [fullEdits]);
+
+  // ---------- validasi draft (error = blokir Terapkan, warning = kuning) ----------
+  const capsChanged = useMemo(
+    () => origCaps !== null && JSON.stringify(draftCaps) !== JSON.stringify(origCaps),
+    [draftCaps, origCaps]
+  );
+  const shotsChanged = useMemo(
+    () => origShots !== null && JSON.stringify(draftShots) !== JSON.stringify(origShots),
+    [draftShots, origShots]
+  );
+  const propsChanged = useMemo(
+    () => JSON.stringify(draftProps) !== JSON.stringify(origProps),
+    [draftProps, origProps]
+  );
+  const capVal = useMemo(
+    () => (origCaps !== null ? validateCaps(draftCaps, len) : { errors: [] as string[], warnings: [] as string[] }),
+    [draftCaps, origCaps, len]
+  );
+  const shotVal = useMemo(
+    () => (origShots !== null ? validateShots(draftShots, len) : { errors: [] as string[], warnings: [] as string[] }),
+    [draftShots, origShots, len]
+  );
+  const propVal = useMemo(() => {
+    const v = validateProps(draftProps, cur.file, len);
+    // Cek silang WIN/TL + meeting.end (cermin crossCheckFinal di .mjs):
+    // validateProps() sendiri tidak melakukannya, seperti di .mjs.
+    const cc = crossCheckProps(draftProps, len);
+    return { errors: [...v.errors, ...cc.errors], warnings: [...v.warnings, ...cc.warnings] };
+  }, [draftProps, cur.file, len]);
+  const allErrors = useMemo(
+    () => [...capVal.errors, ...shotVal.errors, ...propVal.errors, ...Object.values(arrayErr)],
+    [capVal, shotVal, propVal, arrayErr]
+  );
+  const allWarnings = useMemo(() => [...capVal.warnings, ...shotVal.warnings, ...propVal.warnings], [capVal, shotVal, propVal]);
+  const voFollowNote = useMemo(() => {
+    if (!capsChanged || voTouched) return "";
+    if (voKindState === "literal") return "VO akan mengikuti teks caption baru saat diterapkan.";
+    if (voKindState === "derived") return "VO template ini mengikuti caption otomatis (caps.map).";
+    return "";
+  }, [capsChanged, voTouched, voKindState]);
+  const anyDirty = useMemo(
+    () => dirty || capsChanged || shotsChanged || propsChanged || (voTouched && JSON.stringify(draftVO) !== JSON.stringify(origVO)),
+    [dirty, capsChanged, shotsChanged, propsChanged, voTouched, draftVO, origVO]
+  );
+
+
+  /** Terapkan SEMUA edit (teks+caps+shots+VO+props) — tombol Terapkan di
+   *  semua tab dan Ctrl+Enter. Diblokir bila ada error validasi. */
+  const applyAll = useCallback(() => {
+    if (!base || !ready || !anyDirty || allErrors.length) return;
+    saveCurrentFullEdit();
+    setEdits((prev) => {
+      const next = { ...prev };
+      if (hasChanges()) next[cur.file] = { ...normalize(fields) };
+      else delete next[cur.file];
+      return next;
+    });
     mount(true);
-    toast("Teks diterapkan");
-  }, [base, ready, dirty, mount, toast]);
+    toast("Semua edit diterapkan");
+  }, [base, ready, anyDirty, allErrors.length, saveCurrentFullEdit, hasChanges, cur, normalize, fields, mount, toast]);
 
   const resetText = useCallback(() => {
     setFields(def);
@@ -440,6 +695,207 @@ export default function Studio() {
     }
     toast("Teks dikembalikan ke asli");
   }, [def, cur, base, mount, toast]);
+
+  const resetCaps = useCallback(() => {
+    if (!origCaps) return;
+    setDraftCaps(origCaps.map((c) => [...c] as Cap));
+    setDraftVO(origVO ? [...origVO] : null);
+    setVoTouched(false);
+    setTimeout(() => mount(true), 0);
+    toast("Caption dikembalikan ke asli");
+  }, [origCaps, origVO, mount, toast]);
+
+  const resetShots = useCallback(() => {
+    if (!origShots) return;
+    setDraftShots(origShots.map((x) => [x[0], [...x[1]], [...x[2]]] as Shot));
+    setTimeout(() => mount(true), 0);
+    toast("Shot dikembalikan ke asli");
+  }, [origShots, mount, toast]);
+
+  const resetProps = useCallback(() => {
+    setDraftProps({ ...origProps });
+    const at: Record<string, string> = {};
+    propsAvail.forEach(({ def }) => {
+      if (def.kind === "array" && origProps[def.id] !== undefined) at[def.id] = JSON.stringify(origProps[def.id]);
+    });
+    setArrayText(at);
+    setArrayErr({});
+    setTimeout(() => mount(true), 0);
+    toast("Props dikembalikan ke asli");
+  }, [origProps, mount, toast, propsAvail]);
+
+  /** Ubah satu prop array lewat field teks JSON. Nilai yang lolos parse +
+   *  validasi (validator per-def + cek silang WIN/TL / meeting.end) masuk
+   *  draftProps; yang tidak lolos hanya menampilkan error dan menahan
+   *  Terapkan (arrayErr masuk allErrors) — draftProps tidak diubah. */
+  const handleArrayPropChange = useCallback((def: PropDef, text: string) => {
+    setArrayText((prev) => ({ ...prev, [def.id]: text }));
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch (e) {
+      setArrayErr((prev) => ({ ...prev, [def.id]: `JSON tidak valid: ${String((e as Error).message || e)}` }));
+      return;
+    }
+    const candidate = { ...draftProps, [def.id]: parsed as PropValue };
+    const v = validateProps(candidate, cur.file, len);
+    const cc = crossCheckProps(candidate, len);
+    const mine = [...v.errors, ...cc.errors].filter(
+      (err) =>
+        err.includes(def.id) ||
+        (def.id.startsWith("typing.") && err.startsWith("typing")) ||
+        (def.id === "meeting.end" && err.startsWith("meeting.end"))
+    );
+    if (mine.length) {
+      setArrayErr((prev) => ({ ...prev, [def.id]: mine.join(" ") }));
+      return;
+    }
+    setArrayErr((prev) => {
+      const next = { ...prev };
+      delete next[def.id];
+      return next;
+    });
+    setDraftProps(candidate);
+  }, [draftProps, cur.file, len]);
+
+  /** Spec kanonik edit saat ini (untuk dialog Ekspor + unduh .html). */
+  const buildSpec = useCallback((): EditSpec => {
+    const spec: EditSpec = { file: cur.file };
+    const n = normalize(fields);
+    (["title", "sub", "end"] as const).forEach((k) => {
+      if (n[k] !== def[k]) spec[k] = n[k];
+    });
+    if (capsChanged) spec.caps = draftCaps;
+    if (shotsChanged) spec.shots = draftShots;
+    if (voTouched && draftVO) spec.vo = draftVO;
+    const changedProps: PropValues = {};
+    Object.keys(draftProps).forEach((id) => {
+      if (JSON.stringify(draftProps[id]) !== JSON.stringify(origProps[id])) changedProps[id] = draftProps[id];
+    });
+    if (Object.keys(changedProps).length) spec.props = changedProps;
+    return spec;
+  }, [cur, normalize, fields, def, capsChanged, draftCaps, shotsChanged, draftShots, voTouched, draftVO, draftProps, origProps]);
+
+  const specJson = useMemo(() => JSON.stringify(buildSpec(), null, 2), [buildSpec]);
+  const hasNonTextEdits = useMemo(
+    () => capsChanged || shotsChanged || propsChanged || (voTouched && draftVO !== null),
+    [capsChanged, shotsChanged, propsChanged, voTouched, draftVO]
+  );
+
+  // ---------- Video Buatan Saya ----------
+  const confirmSaveMine = useCallback(() => {
+    const label = saveMineLabel.trim() || fields.title.trim() || cur.label;
+    const n = normalize(fields);
+    const entry: MyVideo = {
+      id: "mine-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      label,
+      file: cur.file,
+      title: n.title,
+      sub: n.sub,
+      end: n.end,
+      createdAt: Date.now(),
+    };
+    if (capsChanged) entry.caps = draftCaps;
+    if (shotsChanged) entry.shots = draftShots;
+    if (voTouched && draftVO) entry.vo = draftVO;
+    if (propsChanged) entry.props = { ...draftProps };
+    setMine((prev) => {
+      const next = [entry, ...prev];
+      try {
+        localStorage.setItem(MINE_KEY, JSON.stringify(next));
+      } catch { /* private mode */ }
+      return next;
+    });
+    setActiveMineId(entry.id);
+    setSaveMineOpen(false);
+    toast(`"${label}" disimpan di Video Buatan Saya`);
+  }, [saveMineLabel, fields, cur, normalize, capsChanged, draftCaps, shotsChanged, draftShots, voTouched, draftVO, propsChanged, draftProps, toast]);
+
+  const openMine = useCallback(
+    (entry: MyVideo) => {
+      const t = TEMPLATES.find((x) => x.file === entry.file);
+      if (!t) {
+        toast("Template asal tidak ditemukan");
+        return;
+      }
+      pendingMineRef.current = entry;
+      // Template asal sedang terbuka: openTemplate() no-op dan load() ulang
+      // tidak me-mount (string base identik) — terapkan override langsung.
+      if (cur === t && base) {
+        setActiveMineId(entry.id);
+        const n = { title: entry.title, sub: entry.sub, end: entry.end };
+        setFields(n);
+        setApplied(n);
+        setDraftCaps(entry.caps ?? origCaps ?? []);
+        setDraftShots(entry.shots ?? origShots ?? []);
+        setDraftVO(entry.vo ?? origVO ?? null);
+        setVoTouched(!!entry.vo);
+        if (entry.props) {
+          setDraftProps(entry.props);
+          setArrayText((prev) => {
+            const next = { ...prev };
+            Object.keys(entry.props as PropValues).forEach((id) => {
+              const v = (entry.props as PropValues)[id];
+              if (Array.isArray(v)) next[id] = JSON.stringify(v);
+            });
+            return next;
+          });
+          setArrayErr({});
+        }
+        setTab("teks");
+        setTimeout(() => mount(true), 0);
+        return;
+      }
+      openTemplate(t);
+    },
+    [cur, base, mount, openTemplate, origCaps, origShots, origVO, toast]
+  );
+
+  const deleteMine = useCallback(
+    (id: string) => {
+      setMine((prev) => {
+        const next = prev.filter((m) => m.id !== id);
+        try {
+          localStorage.setItem(MINE_KEY, JSON.stringify(next));
+        } catch { /* private mode */ }
+        return next;
+      });
+      if (activeMineId === id) setActiveMineId(null);
+      toast("Video dihapus dari Video Buatan Saya");
+    },
+    [activeMineId, toast]
+  );
+
+  /** Unduh satu entri sebagai file .html lengkap (setText+setCaps+setShots+setVO+setProps). */
+  const downloadMine = useCallback(
+    async (entry: MyVideo) => {
+      try {
+        const r = await fetch("/templates/" + entry.file);
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        const html = await r.text();
+        const lens = [...html.matchAll(/LEN=([0-9.]+)/g)].map((m) => +m[1]);
+        const L = lens[lens.length - 1] || 30;
+        const spec: EditSpec = { file: entry.file, title: entry.title, sub: entry.sub, end: entry.end };
+        if (entry.caps) spec.caps = entry.caps;
+        if (entry.shots) spec.shots = entry.shots;
+        if (entry.vo) spec.vo = entry.vo;
+        if (entry.props) spec.props = entry.props;
+        const out = applyEdits(html, spec, L);
+        const blob = new Blob([out.html], { type: "text/html;charset=utf-8" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = slugify(entry.label) + ".html";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+        toast("Mengunduh " + a.download);
+      } catch (e) {
+        toast("Gagal mengunduh: " + String((e as Error).message || e));
+      }
+    },
+    [toast]
+  );
 
   // ---------- sync loop (playhead, shot/cap aktif) ----------
   useEffect(() => {
@@ -667,7 +1123,7 @@ export default function Studio() {
       a(loopOn ? "Matikan loop" : "Nyalakan loop", "L", () => setLoopOn((v) => !v)),
       a(guides ? "Sembunyikan garis bantu" : "Tampilkan garis bantu", "G", () => setGuides((v) => !v)),
       a("Fit timeline", "F", fitTimeline),
-      a("Terapkan teks", "Ctrl+Enter", applyText, !dirty || !ready),
+      a("Terapkan semua edit", "Ctrl+Enter", applyAll, !anyDirty || !ready || allErrors.length > 0),
       a("Kembalikan teks asli", "", resetText, !edited || !ready),
       a("Ekspor MP4…", "E", () => setExpOpen(true)),
       a(theme === "dark" ? "Ganti ke tema terang" : "Ganti ke tema gelap", "D", () => setTheme(theme === "dark" ? "light" : "dark")),
@@ -800,7 +1256,7 @@ export default function Studio() {
       }
       if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
         e.preventDefault();
-        applyText();
+        applyAll();
         return;
       }
       if (e.ctrlKey || e.metaKey) return;
@@ -860,7 +1316,7 @@ export default function Studio() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [tourStep, cmdOpen, expOpen, keysOpen, applyText, goTo, currentTime, toggle, activeShot, shots, caps, selectClip, toggleMute, fitTimeline, toast, cur, load, theme, setTheme, len, endTour]);
+  }, [tourStep, cmdOpen, expOpen, keysOpen, applyAll, goTo, currentTime, toggle, activeShot, shots, caps, selectClip, toggleMute, fitTimeline, toast, cur, load, theme, setTheme, len, endTour]);
 
   // ---------- derived ----------
   const filtered = useMemo(() => {
@@ -879,7 +1335,7 @@ export default function Studio() {
       { label: "Buka studio di tab baru", hint: "", run: () => window.open(window.location.href, "_blank") },
     ];
     const edit = [
-      { label: "Terapkan teks", hint: "Ctrl+Enter", run: applyText, off: !dirty || !ready },
+      { label: "Terapkan semua edit", hint: "Ctrl+Enter", run: applyAll, off: !anyDirty || !ready || allErrors.length > 0 },
       { label: "Kembalikan teks asli", hint: "", run: resetText, off: !edited || !ready },
       { sep: true },
       { label: "Palet perintah…", hint: "Ctrl+K", run: () => setCmdOpen(true) },
@@ -906,7 +1362,7 @@ export default function Studio() {
       { label: "Short Studio v3.17 · self-host", hint: "", run: () => toast("Short Studio — editor teks + timeline untuk threejs-cinematic-short") },
     ];
     return { file, edit, comp, view, help } as Record<string, { label: string; hint?: string; run: () => void; off?: boolean; sep?: boolean }[]>;
-  }, [applyText, resetText, dirty, ready, edited, playing, toggle, loopOn, muted, toggleMute, goTo, len, guides, fitTimeline, theme, setTheme, load, cur, toast]);
+  }, [applyAll, resetText, anyDirty, allErrors, ready, edited, playing, toggle, loopOn, muted, toggleMute, goTo, len, guides, fitTimeline, theme, setTheme, load, cur, toast]);
 
   const fieldChanged = (k: keyof TextFields) => normalize(fields)[k] !== def[k];
   const selShot = sel?.kind === "shot" ? shots[sel.i] : undefined;
@@ -1030,13 +1486,37 @@ export default function Studio() {
                 <span className="tpl-info">
                   <span className="tpl-name">{t.label}</span>
                   <span className="tpl-meta">
-                    {edits[t.file] ? <i className="dot" title="Teks diubah" /> : null}
+                    {edits[t.file] || fullEdits[t.file] ? <i className="dot" title="Diedit" /> : null}
                     {t.file.replace(/^template-?/, "").replace(/\.html$/, "") || "versus"}
                   </span>
                 </span>
                 <span className="tpl-dur">{t.kind || ""}</span>
               </button>
             ))}
+          </div>
+          <div className="mine-sec">
+            <div className="mine-h">
+              <span>Video Buatan Saya</span>
+              <span className="badge">{mine.length}</span>
+              <span className="grow" />
+              <button className="btn ghost small" title="Simpan video saat ini sebagai video baru" onClick={() => { setSaveMineLabel(fields.title.trim() || cur.label); setSaveMineOpen(true); }}>+ Simpan saat ini</button>
+            </div>
+            {mine.length === 0 ? (
+              <p className="hint" style={{ padding: "6px 9px" }}>Belum ada. Edit template apa pun lalu simpan sebagai video baru — template asli tidak pernah diubah.</p>
+            ) : (
+              <div className="mine-list">
+                {mine.map((m) => (
+                  <div key={m.id} className={`mine-item${activeMineId === m.id ? " on" : ""}`}>
+                    <button className="mine-open" onClick={() => openMine(m)} title={`Buka ${m.label} (dari ${m.file})`}>
+                      <b>{m.label}</b>
+                      <small>dari {m.file.replace(/^template-?/, "").replace(/\.html$/, "") || "versus"} · {new Date(m.createdAt).toLocaleDateString("id-ID", { day: "numeric", month: "short" })}</small>
+                    </button>
+                    <button className="btn ghost small" title="Unduh sebagai file .html" onClick={() => downloadMine(m)}>Unduh .html</button>
+                    <button className="btn ghost small" title="Hapus video ini" onClick={() => deleteMine(m.id)}>Hapus</button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           <div className="panel-foot"><b>12 short siap edit.</b><br />Pilih template, scrub di timeline, ubah teks, ekspor.</div>
         </aside>
@@ -1082,7 +1562,7 @@ export default function Studio() {
             </div>
           </div>
           <div className="now-cap" aria-live="off">
-            <i style={{ background: nowCap ? SPK[nowCap[3]] || SPK[2] : "transparent" }} />
+            <i style={{ background: nowCap ? SPK[nowCap[3] ?? 2] || SPK[2] : "transparent" }} />
             <span className={nowCap ? "" : "none"}>{nowCap ? nowCap[2] : playing ? "…" : "Tidak ada caption di titik ini"}</span>
             <span className="nc-time">{fmt(time)} / {fmt(len)}</span>
           </div>
@@ -1254,7 +1734,7 @@ export default function Studio() {
                         className={`clip cap${activeCap === i ? " active" : ""}${sel?.kind === "cap" && sel.i === i ? " sel" : ""}`}
                         data-kind="cap"
                         data-i={i}
-                        style={{ left: pct(x[0]) + "%", width: pct(Math.max(0.2, x[1] - x[0])) + "%", ["--c" as string]: SPK[x[3]] || SPK[2] }}
+                        style={{ left: pct(x[0]) + "%", width: pct(Math.max(0.2, x[1] - x[0])) + "%", ["--c" as string]: SPK[x[3] ?? 2] || SPK[2] }}
                         title={`${x[2]} · ${fmt(x[0])}`}
                         onClick={(e) => { e.stopPropagation(); selectClip("cap", i, true); }}
                       >
@@ -1280,7 +1760,7 @@ export default function Studio() {
 
         <aside className="panel inspector" aria-label="Inspector">
           <div className="tabs" role="tablist">
-            {(["teks", "shot", "cap"] as const).map((name) => (
+            {(["teks", "shot", "cap", "props"] as const).map((name) => (
               <button
                 key={name}
                 className={`tab${tab === name ? " on" : ""}`}
@@ -1289,8 +1769,10 @@ export default function Studio() {
                 tabIndex={tab === name ? 0 : -1}
                 onClick={() => setTab(name)}
               >
-                {name === "teks" ? "Teks" : name === "shot" ? "Shot" : "Caption"}
-                {name !== "teks" && <span className="n">{name === "shot" ? shots.length : caps.length}</span>}
+                {name === "teks" ? "Teks" : name === "shot" ? "Shot" : name === "cap" ? "Caption" : "Props"}
+                {name === "shot" && <span className="n">{shots.length}</span>}
+                {name === "cap" && <span className="n">{caps.length}</span>}
+                {name === "props" && <span className="n">{propsAvail.length}</span>}
               </button>
             ))}
           </div>
@@ -1312,7 +1794,7 @@ export default function Studio() {
                           value={fields.end}
                           placeholder={def.end}
                           onChange={(e) => setFields((p) => ({ ...p, end: e.target.value }))}
-                          onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); applyText(); } }}
+                          onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); applyAll(); } }}
                         />
                       ) : (
                         <input
@@ -1323,21 +1805,27 @@ export default function Studio() {
                           autoComplete="off"
                           onChange={(e) => setFields((p) => ({ ...p, [k]: e.target.value }))}
                           onKeyDown={(e) => {
-                            if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); applyText(); }
-                            else if (e.key === "Enter") { e.preventDefault(); applyText(); }
+                            if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); applyAll(); }
+                            else if (e.key === "Enter") { e.preventDefault(); applyAll(); }
                           }}
                         />
                       )}
                     </label>
                   ))}
                   <div className="insp-actions">
-                    <button id="apply" className="btn primary" disabled={!ready || !dirty} title="Terapkan teks (Ctrl+Enter)" onClick={applyText}>
+                    <button id="apply" className="btn primary" disabled={!ready || !anyDirty || allErrors.length > 0} title="Terapkan semua edit (Ctrl+Enter)" onClick={applyAll}>
                       <svg viewBox="0 0 24 24"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z" /></svg>
-                      Terapkan teks
+                      Terapkan semua edit
                     </button>
                     <button id="reset" className="btn ghost" disabled={!ready || !edited} title="Kembalikan teks asli" onClick={resetText}>
                       <svg viewBox="0 0 24 24"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z" /></svg>
                       Kembalikan
+                    </button>
+                  </div>
+                  <div className="insp-actions">
+                    <button className="btn ghost" disabled={!ready} title="Simpan edit saat ini sebagai video baru (template asli tidak diubah)" onClick={() => { setSaveMineLabel(fields.title.trim() || cur.label); setSaveMineOpen(true); }}>
+                      <svg viewBox="0 0 24 24"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z" /></svg>
+                      Simpan sebagai video baru
                     </button>
                   </div>
                   <p className="hint">Teks diganti di preview saja — file template di disk tidak diubah. Edit tiap template diingat selama tab terbuka.</p>
@@ -1376,23 +1864,53 @@ export default function Studio() {
                   <p className="hint">Klik klip shot di timeline untuk melihat propertinya.</p>
                 )}
                 <details className="insp-group" open>
-                  <summary>Daftar shot <em>{shots.length}</em></summary>
+                  <summary>Edit shot <em>{draftShots.length}</em></summary>
                   <div className="insp-body" style={{ padding: 4 }}>
-                    <div className="rows">
-                      {shots.length ? shots.map((x, i) => {
-                        const end = i + 1 < shots.length ? shots[i + 1][0] : len;
-                        const cams = Array.isArray(x[1]) ? (x[1] as (string | number)[]).join(" · ") : String(x[1] ?? "cam");
-                        return (
-                          <button key={i} className={`row shot${activeShot === i ? " on" : ""}${sel?.kind === "shot" && sel.i === i ? " sel" : ""}`} data-kind="shot" data-i={i} onClick={() => selectClip("shot", i, true)}>
-                            <span className="k">{pad(i + 1)}</span>
-                            <span className="t">Shot {i + 1} <small>{fmt1(end - x[0])} · {cams}</small></span>
-                            <span className="at">{fmt(x[0])}</span>
-                          </button>
-                        );
-                      }) : <p className="hint" style={{ padding: 6 }}>Belum ada shot.</p>}
-                    </div>
+                    {origShots === null ? (
+                      <p className="hint" style={{ padding: 6 }}>Shot template ini tidak bisa di-parse (format berbeda), jadi edit shot dinonaktifkan untuk template ini.</p>
+                    ) : draftShots.length ? draftShots.map((s, i) => {
+                      const end = i + 1 < draftShots.length ? draftShots[i + 1][0] : len;
+                      const upd = (part: 0 | 1 | 2, k: number, v: number) =>
+                        setDraftShots((prev) => prev.map((x, j) =>
+                          j !== i ? x
+                            : part === 0 ? [v, [...x[1]], [...x[2]]] as Shot
+                            : part === 1 ? [x[0], x[1].map((n, kk) => (kk === k ? v : n)), [...x[2]]] as Shot
+                            : [x[0], [...x[1]], x[2].map((n, kk) => (kk === k ? v : n))] as Shot));
+                      const num = (e: React.ChangeEvent<HTMLInputElement>) => {
+                        const n = parseFloat(e.target.value);
+                        return Number.isNaN(n) ? 0 : n;
+                      };
+                      return (
+                        <div key={i} className={`edit-shot${sel?.kind === "shot" && sel.i === i ? " sel" : ""}`} onClick={() => selectClip("shot", i, false)}>
+                          <div className="edit-shot-h">
+                            <span className="k">{pad(i + 1)}</span><b>Shot {i + 1}</b>
+                            <span className="at">{fmt1(end - s[0])}</span>
+                          </div>
+                          <label className="edit-f">Mulai (detik)
+                            <input type="number" step={0.1} min={0} max={len} value={s[0]} aria-label={`Shot ${i + 1} mulai`}
+                              onClick={(e) => e.stopPropagation()} onChange={(e) => upd(0, 0, num(e))} />
+                          </label>
+                          <div className="edit-nums">
+                            {(["Kam X", "Kam Y", "Kam Z", "Lihat X", "Lihat Y", "Lihat Z"] as const).map((lbl, k) => (
+                              <label key={k} className="edit-f">{lbl}
+                                <input type="number" step={0.1} value={k < 3 ? s[1][k] : s[2][k - 3]} aria-label={`Shot ${i + 1} ${lbl}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onChange={(e) => upd(k < 3 ? 1 : 2, k < 3 ? k : k - 3, num(e))} />
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    }) : <p className="hint" style={{ padding: 6 }}>Belum ada shot.</p>}
                   </div>
                 </details>
+                {shotVal.errors.map((e, k) => <p key={k} className="valid-err">{e}</p>)}
+                {shotVal.warnings.map((w, k) => <p key={k} className="valid-warn">{w}</p>)}
+                <div className="insp-actions">
+                  <button className="btn primary" disabled={!ready || !anyDirty || allErrors.length > 0} title="Terapkan semua edit (Ctrl+Enter)" onClick={applyAll}>Terapkan semua edit</button>
+                  <button className="btn ghost" disabled={!ready || !shotsChanged} title="Kembalikan shot asli" onClick={resetShots}>Kembalikan</button>
+                </div>
+                <p className="hint">Edit tersimpan di state dulu — klik Terapkan (Ctrl+Enter) untuk me-mount ulang preview dengan shot baru.</p>
               </div>
             )}
             {tab === "cap" && (
@@ -1421,20 +1939,123 @@ export default function Studio() {
                   <p className="hint">Klik klip caption di timeline untuk melihat detailnya.</p>
                 )}
                 <details className="insp-group" open>
-                  <summary>Daftar caption <em>{caps.length}</em></summary>
+                  <summary>Edit caption <em>{draftCaps.length}</em></summary>
                   <div className="insp-body" style={{ padding: 4 }}>
-                    <div className="rows">
-                      {caps.length ? caps.map((x, i) => (
-                        <button key={i} className={`row cap${activeCap === i ? " on" : ""}${sel?.kind === "cap" && sel.i === i ? " sel" : ""}`} data-kind="cap" data-i={i} onClick={() => selectClip("cap", i, true)}>
-                          <span className="k">{pad(i + 1)}</span>
-                          <span className="spk" style={{ background: SPK[x[3]] || SPK[2] }} />
-                          <span className="t">{x[2]}</span>
-                          <span className="at">{fmt(x[0])}</span>
-                        </button>
-                      )) : <p className="hint" style={{ padding: 6 }}>Belum ada caption.</p>}
-                    </div>
+                    {origCaps === null ? (
+                      <p className="hint" style={{ padding: 6 }}>Caption template ini tidak bisa di-parse (format berbeda), jadi edit caption dinonaktifkan untuk template ini.</p>
+                    ) : draftCaps.length ? draftCaps.map((x, i) => (
+                      <div key={i} className={`edit-cap${activeCap === i ? " on" : ""}${sel?.kind === "cap" && sel.i === i ? " sel" : ""}`} onClick={() => selectClip("cap", i, false)}>
+                        <span className="k">{pad(i + 1)}</span>
+                        <span className="spk" style={{ background: SPK[x[3] ?? 2] || SPK[2] }} />
+                        <input className="cap-text" value={x[2]} aria-label={`Teks caption ${i + 1}`}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => setDraftCaps((prev) => prev.map((c, j) => (j === i ? [c[0], c[1], e.target.value, ...(c.length > 3 ? [c[3]] : [])] as Cap : c)))} />
+                        <input className="cap-num" type="number" step={0.1} min={0} max={len} value={x[0]} aria-label={`Caption ${i + 1} mulai`}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => { const n = parseFloat(e.target.value); setDraftCaps((prev) => prev.map((c, j) => (j === i ? [Number.isNaN(n) ? 0 : n, c[1], c[2], ...(c.length > 3 ? [c[3]] : [])] as Cap : c))); }} />
+                        <input className="cap-num" type="number" step={0.1} min={0} max={len} value={x[1]} aria-label={`Caption ${i + 1} selesai`}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => { const n = parseFloat(e.target.value); setDraftCaps((prev) => prev.map((c, j) => (j === i ? [c[0], Number.isNaN(n) ? 0 : n, c[2], ...(c.length > 3 ? [c[3]] : [])] as Cap : c))); }} />
+                        {hasSpeaker && (
+                          <select value={x[3] ?? 0} aria-label={`Caption ${i + 1} pembicara`}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => setDraftCaps((prev) => prev.map((c, j) => (j === i ? [c[0], c[1], c[2], +e.target.value] as Cap : c)))}>
+                            <option value={0}>Claude</option>
+                            <option value={1}>Codex</option>
+                            <option value={2}>Bersama</option>
+                          </select>
+                        )}
+                      </div>
+                    )) : <p className="hint" style={{ padding: 6 }}>Belum ada caption.</p>}
+                    {!hasSpeaker && origCaps !== null && (
+                      <p className="hint">Template ini tidak punya kolom pembicara (caps arity 3).</p>
+                    )}
                   </div>
                 </details>
+                <details className="insp-group">
+                  <summary>Narasi (VO) <em>{voKindState === "literal" ? String(draftVO?.length ?? 0) : voKindState === "derived" ? "ikut caption" : "tidak ada"}</em></summary>
+                  <div className="insp-body" style={{ padding: 4 }}>
+                    {voKindState === "literal" && draftVO ? draftVO.map((v, i) => (
+                      <label key={i} className="field">
+                        <span>VO #{i + 1}</span>
+                        <input value={v} aria-label={`Narasi ${i + 1}`}
+                          onChange={(e) => { setDraftVO((prev) => (prev || []).map((x, j) => (j === i ? e.target.value : x))); setVoTouched(true); }} />
+                      </label>
+                    )) : voKindState === "derived" ? (
+                      <p className="hint">VO template ini mengikuti caption otomatis (VO=caps.map(c=&gt;c[2])). Edit caption untuk mengubah narasi.</p>
+                    ) : (
+                      <p className="hint">Template ini tidak punya VO.</p>
+                    )}
+                    {voTouched && <p className="valid-warn">VO diedit manual — tidak lagi mengikuti teks caption.</p>}
+                    {voFollowNote && <p className={voKindState === "literal" ? "valid-warn" : "hint"}>{voFollowNote}</p>}
+                  </div>
+                </details>
+                {capVal.errors.map((e, k) => <p key={k} className="valid-err">{e}</p>)}
+                {capVal.warnings.map((w, k) => <p key={k} className="valid-warn">{w}</p>)}
+                <div className="insp-actions">
+                  <button className="btn primary" disabled={!ready || !anyDirty || allErrors.length > 0} title="Terapkan semua edit (Ctrl+Enter)" onClick={applyAll}>Terapkan semua edit</button>
+                  <button className="btn ghost" disabled={!ready || (!capsChanged && !voTouched)} title="Kembalikan caption asli" onClick={resetCaps}>Kembalikan</button>
+                </div>
+                <p className="hint">Edit tersimpan di state dulu — klik Terapkan (Ctrl+Enter) untuk me-mount ulang preview dengan caption baru.</p>
+              </div>
+            )}
+            {tab === "props" && (
+              <div className="pane on" data-pane="props" role="tabpanel">
+                {(["Maskot", "Warna", "Layar & Set", "Papan skor", "Perang", "Ketik"] as const).map((g) => {
+                  const items = propsAvail.filter((p) => p.def.group === g);
+                  if (!items.length) return null;
+                  return (
+                    <details className="insp-group" open key={g}>
+                      <summary>{g} <em>{items.length}</em></summary>
+                      <div className="insp-body" style={{ padding: 4 }}>
+                        {items.map(({ def }) => {
+                          const v = draftProps[def.id];
+                          return (
+                            <label key={def.id} className="prop-row">
+                              <span>{def.label}</span>
+                              {def.kind === "color" ? (
+                                <span className="prop-color">
+                                  <input type="color" value={typeof v === "string" ? v : "#d97757"} aria-label={def.label}
+                                    onChange={(e) => setDraftProps((p) => ({ ...p, [def.id]: e.target.value }))} />
+                                  <input type="text" value={typeof v === "string" ? v : ""} aria-label={`${def.label} (hex)`}
+                                    onChange={(e) => setDraftProps((p) => ({ ...p, [def.id]: e.target.value }))} />
+                                </span>
+                              ) : def.kind === "array" ? (
+                                <span className="prop-array">
+                                  <input type="text" spellCheck={false}
+                                    value={arrayText[def.id] ?? (v !== undefined ? JSON.stringify(v) : "")}
+                                    aria-label={`${def.label} (JSON)`}
+                                    onChange={(e) => handleArrayPropChange(def, e.target.value)} />
+                                  {arrayErr[def.id] && <em className="valid-err">{arrayErr[def.id]}</em>}
+                                </span>
+                              ) : (
+                                <input type="number" min={def.min} max={def.max} step={def.step} value={typeof v === "number" ? v : 0} aria-label={def.label}
+                                  onChange={(e) => { const n = parseFloat(e.target.value); setDraftProps((p) => ({ ...p, [def.id]: Number.isNaN(n) ? 0 : n })); }} />
+                              )}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </details>
+                  );
+                })}
+                {propsUnavail.length > 0 && (
+                  <details className="insp-group">
+                    <summary>Tidak tersedia di template ini <em>{propsUnavail.length}</em></summary>
+                    <div className="insp-body" style={{ padding: 4 }}>
+                      {propsUnavail.map(({ def, reason }) => (
+                        <p key={def.id} className="hint"><b>{def.label}</b> — {reason}</p>
+                      ))}
+                    </div>
+                  </details>
+                )}
+                {propVal.errors.map((e, k) => <p key={k} className="valid-err">{e}</p>)}
+                {propVal.warnings.map((w, k) => <p key={k} className="valid-warn">{w}</p>)}
+                <div className="insp-actions">
+                  <button className="btn primary" disabled={!ready || !anyDirty || allErrors.length > 0} title="Terapkan semua edit (Ctrl+Enter)" onClick={applyAll}>Terapkan semua edit</button>
+                  <button className="btn ghost" disabled={!ready || !propsChanged} title="Kembalikan props asli" onClick={resetProps}>Kembalikan</button>
+                </div>
+                <p className="hint">Props ditulis ulang sebagai nilai literal di HTML preview (pola yang sama seperti teks/caption). Jarak antar maskot dijaga &gt;0.1 dan monitor 2.4 butuh jarak pusat ≥2.6 (SKILL.md). Warna aksen juga menyinkronkan warna bubble caption (CC). Prop array (skor papan, kurva tangki, sticky notes, spawn/ketapel, jendela/baris ketik) diedit sebagai teks JSON — nilai tidak valid menampilkan error dan menahan Terapkan.</p>
               </div>
             )}
           </div>
@@ -1470,7 +2091,38 @@ export default function Studio() {
               }}>Salin</button>
             </div>
             <p className="note">{expText().length > 0 ? "Teks yang kamu ubah ikut di perintah ini. Videonya tanpa audio (Web Speech tidak bisa dirender)." : "Belum ada teks yang diubah, jadi ekspor memakai teks asli template. Videonya tanpa audio."}</p>
+            {hasNonTextEdits && (
+              <>
+                <p className="note">Caption, shot, VO, atau props yang diedit tidak ikut perintah di atas — salin spec JSON ini sebagai <code>spec.json</code>, lalu ekspor dengan <code>node scripts/export.mjs --file {cur.file} --edit spec.json --fps {fps} --out {cur.file.replace(/\.html$/, "")}.mp4</code></p>
+                <div className="code">
+                  <code>{specJson}</code>
+                  <button className="btn small" onClick={async () => {
+                    try { await navigator.clipboard.writeText(specJson); toast("Spec JSON disalin"); }
+                    catch { toast("Teks dipilih — tekan Ctrl+C"); }
+                  }}>Salin spec</button>
+                </div>
+              </>
+            )}
             <p>Jalankan perintah di atas dari folder project (butuh Playwright + Chromium + ffmpeg, sekali saja: <code>npm i -D playwright &amp;&amp; npx playwright install chromium</code>). Skrip membuka template di Chromium headless, memanggil <code>renderAt(i/fps)</code> per frame, lalu menyambungnya dengan ffmpeg. Perkiraan: 30 detik × 60 fps = 1.800 frame.</p>
+          </div>
+        </dialog>
+      )}
+
+      {saveMineOpen && (
+        <dialog open className="dlg" aria-labelledby="mineH" onClick={(e) => { if (e.target === e.currentTarget) setSaveMineOpen(false); }}>
+          <div className="dlg-h"><h2 id="mineH">Simpan sebagai video baru</h2><button className="tb-icon" data-close aria-label="Tutup" onClick={() => setSaveMineOpen(false)}><svg viewBox="0 0 24 24"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z" /></svg></button></div>
+          <div className="dlg-b">
+            <label className="field">
+              <span>Nama video</span>
+              <input value={saveMineLabel} autoFocus autoComplete="off" placeholder={cur.label}
+                onChange={(e) => setSaveMineLabel(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); confirmSaveMine(); } }} />
+            </label>
+            <p className="note">Disimpan di seksi “Video Buatan Saya” (dari {cur.file}) beserta semua edit saat ini — teks, caption, shot, VO, dan props. Template asli tidak diubah; entri bisa dibuka, diedit lagi, dan diunduh sebagai file .html.</p>
+            <div className="insp-actions">
+              <button className="btn primary" onClick={confirmSaveMine}>Simpan video</button>
+              <button className="btn ghost" onClick={() => setSaveMineOpen(false)}>Batal</button>
+            </div>
           </div>
         </dialog>
       )}
@@ -1494,7 +2146,7 @@ export default function Studio() {
               <dt><kbd>E</kbd></dt><dd>Ekspor MP4</dd>
               <dt><kbd>T</kbd></dt><dd>Panel Project</dd>
               <dt><kbd>R</kbd></dt><dd>Muat ulang preview</dd>
-              <dt><kbd>Ctrl/⌘</kbd>+<kbd>Enter</kbd></dt><dd>Terapkan teks</dd>
+              <dt><kbd>Ctrl/⌘</kbd>+<kbd>Enter</kbd></dt><dd>Terapkan semua edit (teks, caption, shot, VO, props)</dd>
               <dt><kbd>Ctrl/⌘</kbd>+<kbd>K</kbd> atau <kbd>/</kbd></dt><dd>Palet perintah</dd>
               <dt><kbd>D</kbd></dt><dd>Ganti tema</dd>
               <dt><kbd>?</kbd></dt><dd>Dialog pintasan</dd>

@@ -527,3 +527,46 @@ html, body { height: 100%; }
 dialog { margin: auto; }
 /* Iframe preview di React memakai srcDoc; pastikan tetap mengisi stage. */
 .stage iframe { background: #000; }
+
+/* ---- Edit caption / shot / props (editor) ---- */
+.edit-cap{display:flex;align-items:center;gap:5px;width:100%;padding:5px 6px;border-radius:4px;border:1px solid transparent}
+.edit-cap:hover{background:var(--panel-3)}
+.edit-cap.on{background:var(--accent-dim)}
+.edit-cap.sel{border-color:var(--accent);background:var(--accent-dim)}
+.edit-cap .k{width:15px;color:var(--faint);font:500 9.5px/1 var(--mono);flex:0 0 auto;text-align:right}
+.edit-cap .spk{width:5px;height:5px;border-radius:50%;flex:0 0 auto}
+.edit-cap input,.edit-cap select,.edit-shot input,.prop-row input{background:#0f1013;border:1px solid var(--line);border-radius:4px;padding:4px 6px;font-size:11.5px;min-width:0}
+:root[data-theme="light"] .edit-cap input,:root[data-theme="light"] .edit-cap select,:root[data-theme="light"] .edit-shot input,:root[data-theme="light"] .prop-row input{background:#fff}
+.edit-cap input:focus,.edit-cap select:focus,.edit-shot input:focus,.prop-row input:focus{outline:none;border-color:var(--accent)}
+.edit-cap .cap-text{flex:1}
+.edit-cap .cap-num{width:52px;font-family:var(--mono);font-size:11px}
+.edit-cap select{flex:0 0 auto;max-width:86px}
+.edit-shot{display:flex;flex-direction:column;gap:5px;padding:6px;border-radius:5px;border:1px solid var(--line-soft);background:var(--panel-2)}
+.edit-shot.sel{border-color:var(--accent);background:var(--accent-dim)}
+.edit-shot-h{display:flex;align-items:center;gap:6px;font-size:11.5px}
+.edit-shot-h .k{color:var(--faint);font:500 9.5px/1 var(--mono)}
+.edit-shot-h .at{margin-left:auto;color:var(--faint);font:500 9.5px/1 var(--mono)}
+.edit-f{display:flex;flex-direction:column;gap:2px;font-size:10px;font-weight:600;color:var(--dim)}
+.edit-f input{width:100%;font-family:var(--mono);font-size:11px}
+.edit-nums{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+.prop-row{display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:var(--ink-2);padding:4px 2px}
+.prop-row>span:first-child{flex:1;min-width:0}
+.prop-row>input{width:76px;font-family:var(--mono);font-size:11px;text-align:right}
+.prop-color{display:flex;align-items:center;gap:5px}
+.prop-color input[type="color"]{width:28px;height:24px;padding:1px;border:1px solid var(--line);border-radius:4px;background:none;cursor:pointer}
+.prop-color input[type="text"]{width:76px;font-family:var(--mono);font-size:11px;text-align:right}
+.prop-array{display:flex;flex:1;min-width:0;flex-direction:column;gap:2px}
+.prop-array input[type="text"]{width:100%;font-family:var(--mono);font-size:11px;text-align:left}
+.prop-array .valid-err{font-weight:400}
+.valid-err{color:var(--bad);font-size:11px;line-height:1.45;margin:0}
+.valid-warn{color:var(--warn);font-size:11px;line-height:1.45;margin:0}
+/* ---- Video Buatan Saya ---- */
+.mine-sec{flex:0 0 auto;border-top:1px solid var(--line-soft);background:var(--panel-2);display:flex;flex-direction:column;min-height:0}
+.mine-h{display:flex;align-items:center;gap:6px;height:30px;padding:0 9px;font-size:11.5px;font-weight:650;color:var(--ink-2)}
+.mine-list{display:flex;flex-direction:column;gap:4px;padding:0 7px 8px;max-height:180px;overflow:auto}
+.mine-item{display:flex;align-items:center;gap:4px;padding:5px 6px;border-radius:5px;border:1px solid transparent}
+.mine-item:hover{background:var(--panel-3)}
+.mine-item.on{border-color:var(--accent);background:var(--accent-dim)}
+.mine-open{flex:1;min-width:0;text-align:left;display:flex;flex-direction:column;gap:1px}
+.mine-open b{font-size:11.5px;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mine-open small{font-size:10px;color:var(--faint)}

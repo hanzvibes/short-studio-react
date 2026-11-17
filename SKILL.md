@@ -5,6 +5,324 @@ description: Build a cinematic 3D animated short (story-driven mascots, smooth c
 
 # Cinematic 3D short in three.js (9:16)
 
+## Short Studio React (repo ini — Next.js, bukan skill pack)
+
+Bagian ini HANYA berlaku untuk repo `short-studio-react` (Next.js 15.5.29 +
+React 19 + TS). Isi v3.14 di bawah tetap berlaku untuk template HTML-nya.
+Jangan ubah 12 template asli di `public/templates/` dan jangan buat repo baru.
+
+### Arsitektur
+
+```
+public/templates/*.html (12 template, byte-identik dari skill pack)
+        │  fetch("/templates/<file>")
+        ▼
+lib/studio.ts :: parseDefaults() → setText() / applyEdits()
+        │  setText (judul/sub/end) · setCaps / setShots / setVO / setProps
+        │  semua penggantian array memakai bracket-matching (bukan regex rakus)
+        ▼
++ BRIDGE (lib/studio.ts :: BRIDGE, disuntik sebelum </body>)
+        │  window.__st = { gT, seek, play, pause, len, caps, shots, mute, ok }
+        │  menyembunyikan chrome player bawaan template (#go / #gui)
+        ▼
+iframe srcdoc (components/Studio.tsx) — file template di disk TIDAK PERNAH diubah
+```
+
+- **Template registry**: `public/templates.json` (file, label, kind, title/sub/end
+  default). `lib/studio.ts` mengekspor `TEMPLATES`, `slug()`, `SPK` (warna
+  pembicara `["#f08a4b", "#5b8dff", "#9aa0aa"]` — dipakai UI timeline,
+  BUKAN warna di dalam template; warna di dalam template = `CC[]`).
+- **Fungsi edit** (`lib/studio.ts`, cermin JS-nya di `scripts/apply-edit.mjs`):
+  `setText(html, {title, sub, end})`, `parseCaps/parseShots/parseVO`,
+  `setCaps/setShots/setVO`, `parseProps/setProps` + `PROP_DEFS`,
+  `validateCaps/validateShots/validateProps`, `applyEdits(html, spec, len)`,
+  `voKind(html)` (`"literal"` | `"derived"` | `"none"`).
+- **Edit tersimpan** (localStorage, per browser): `ss.edits.v1` = edit lengkap
+  per template (teks + caps + shots + VO + props; hanya selisih dari aslinya),
+  `ss.mine.v1` = entri "Video Buatan Saya" (video baru dari satu template asal).
+  Lainnya: `ss.theme`, `ss.last`, `ss.drawer`, `ss.vzoom`, `ss.tour`.
+- **Scrub selalu lewat `renderAt(t)`** di dalam iframe (via `__st.seek`);
+  jangan pernah mengarang frame dari state playback.
+- **Dua bentuk `props` diterima** (lihat "Format spec" di bawah): kanonik
+  object `{"id": value}` dan alias lama array `[{"id","value"}]`
+  (dulu kanoniknya array — diselaraskan 2026-11-17; CLI dan `lib/studio.ts`
+  menerima keduanya dengan hasil yang sama).
+
+### Alur AI agent bikin video/cerita BARU
+
+1. **Pilih template basis terdekat** dari `public/templates.json` (lihat matriks
+   di bawah — cocokkan jumlah karakter, mesin cerita, dan durasi; JANGAN
+   memulai dari template yang mesinnya tidak cocok, mis. jangan pakai
+   template-kuota untuk debat 3 orang).
+2. **Tulis spec edit JSON** (format kanonik di bawah) — judul/sub/end +
+   caps + shots + (bila perlu) vo + props. Selalu tulis array caps/shots
+   LENGKAP (menggantikan seluruh array, bukan patch per baris).
+3. **Terapkan via CLI** (dari root repo):
+   `node scripts/apply-edit.mjs --file template-code.html --edit spec.json --out out.html`
+   CLI memvalidasi keras (lihat "Validasi") dan TIDAK menulis output bila ada
+   yang gagal. `--help` dan `--list-props <file>` tersedia; contoh spec yang
+   sudah teruji ada di `scripts/examples/`.
+4. **Validasi hasil** (berurutan):
+   a. `python3 <skill-pack>/scripts/lint_short.py out.html` — `lint_short.py`
+      TIDAK ADA di repo ini; ambil dari skill pack `threejs-cinematic-short`
+      (folder skill sumber, `scripts/lint_short.py`). Perbaiki semua error.
+   b. `node --check` pada tiap blok `<script>` inline hasil edit — SUDAH
+      dilakukan otomatis di dalam CLI (langkah 3); ulangi manual bila ragu.
+   c. Headless `renderAt`: muat `out.html` di Chromium headless (Playwright,
+      CDN three.js dialihkan ke salinan lokal `/tmp/ss-vendor` seperti
+      `scripts/verify-headless.mjs`), panggil `window.renderAt(5)`,
+      `renderAt(12)`, `renderAt(23)`, pastikan tanpa pageerror dan
+      `caps`/`shots`/`LEN` terbaca. Catatan lingkungan 2026-11-17: Chromium
+      di VM ini sempat menolak start ("Hatch WebGL domain policy is required
+      for browser startup") — butuh switch
+      `--hatch-webgl-allowed-domains-file=<file> --hatch-webgl-allowed-domains-sha256=<sha256>`;
+      artefak `verification/` membuktikan skrip ini pernah jalan sebelum
+      pergantian VM; bila browser tetap tidak bisa start, laporkan apa adanya
+      dan JANGAN klaim render terverifikasi.
+5. **Simpan sebagai video baru — TIDAK PERNAH timpa 12 template asli.**
+   Dua rute (pilih satu): (a) file hasil CLI (`out.html`) adalah video baru
+   yang lengkap — simpan di luar `public/templates/`; (b) di Studio UI, buka
+   template basis, terapkan edit yang sama, lalu "Simpan sebagai video baru"
+   (dialog di panel kiri) — tersimpan sebagai entri "Video Buatan Saya"
+   (`ss.mine.v1`), bisa dibuka, diedit lagi, dan diunduh sebagai `.html`.
+   `apply-edit.mjs` MENOLAK `--out` di dalam `public/templates/` dan menolak
+   `--out` yang sama dengan file input.
+6. **Ekspor MP4** (bila diminta): `node scripts/export.mjs --file <video-baru>.html
+   --fps 60 --out video.mp4` (Playwright + ffmpeg; tanpa audio — mux TTS
+   offline bila butuh narasi; lihat "Ekspor MP4" di README).
+
+### Aturan wajib (berlaku untuk SEMUA video baru)
+
+- **Kredit `@hanzvibes` di 2 tempat, tanpa kecuali**: watermark `#wm`
+  kanan-atas + `by @hanzvibes` di end card (`#end small`). `apply-edit.mjs`
+  gagal bila jumlah kemunculan `@hanzvibes` berkurang sesudah edit.
+- **three.js r128** (pinned, CDN jsDelivr) — jangan ganti versi.
+- **9:16** — stage letterboxed di desktop, teks terbaca di HP.
+- **Caption ≤ 2,5 kata/detik** (3,2 dtk = 8 kata; 2,4 dtk = 6 kata). CLI
+  memberlakukannya sebagai ERROR; UI Studio menandainya peringatan.
+- **No-flicker**: semua kemunculan pakai envelope (bukan toggle per frame),
+  tanpa CSS transition pada elemen yang mengikuti posisi 3D.
+- **VO paralel dengan caps**: `VO[]` satu baris per `caps[]` (indeks sama);
+  `vo` di spec harus sepanjang caps akhir. Bila caps diubah dan `vo` tidak
+  diisi, VO literal diperbarui mengikuti teks caps baru (peringatan dicetak);
+  VO turunan (`const VO=caps.map(c=>c[2])`) sudah otomatis mengikuti.
+  VO eksplisit pada template VO turunan mengubahnya menjadi array literal
+  sekali (edit caps berikutnya tetap diikuti aturan auto-follow).
+
+### Format spec edit JSON (kanonik)
+
+```json
+{ "file": "template-code.html",
+  "title": "...", "sub": "...", "end": "...",
+  "caps": [[t0, t1, "teks", speaker], ...],
+  "shots": [[t0, [x, y, z], [x, y, z]], ...],
+  "vo": ["...", ...],
+  "props": {"claude.x": -1.5, "codex.color": "#7b8cff", ...} }
+```
+
+- `"file"` hanya dokumentasi (file yang dipakai = `--file`); bila isinya
+  tidak cocok dengan `--file`, CLI gagal keras.
+- Semua field selain `"file"` opsional. `"caps"`/`"shots"`/`"vo"`
+  MENGGANTIKAN SELURUH array di template — selalu tulis array lengkap.
+- `"caps"`: arity mengikuti template — 3 (`[t0,t1,teks]`, template-typing dan
+  template-deploy) atau 4 (`[t0,t1,teks,speaker]`, 10 template lain).
+  Speaker 0 = Claude, 1 = Codex, 2 = keduanya / Gemini di trio (lihat
+  template: trio speaker 2 = Gemini; code/kuota speaker 2 = keduanya).
+- `"shots"`: `[t0, posisiKamera [x,y,z], lookAt [x,y,z]]`, t0 terurut naik.
+- `"props"`: `{"id": value}` (kanonik) atau `[{"id","value"}]` (alias lama,
+  tetap diterima).
+  **ID props TIDAK BOLEH ditebak** — daftar lengkap per template ada di
+  matriks di bawah dan di `node scripts/apply-edit.mjs --list-props <file>`
+  (cara deterministik menemukan props: jalankan perintah itu, JANGAN
+  menerka nama variabel dari kode). ID warna aksen adalah `claude.color` /
+  `codex.color` / `gemini.color` (BUKAN `claude.accent` — id itu tidak ada
+  dan CLI akan menolaknya).
+- Serialisasi string hasil edit memakai `JSON.stringify`; penggantian array
+  memakai bracket-matching (scan kurung seimbang, sadar string dan komentar
+  `//`/`/* */` — shots template-sleep mengandung komentar `//`).
+
+### Contoh spec lengkap — cerita baru dari template-code.html
+
+Cerita "PR Kecil, Drama Besar" (reviewer vs penulis kode; beat template-code
+tetap dipakai: papan skor masuk 3,2 · refactor 9,8 · bug bareng 15,6 ·
+perbaikan 21 · seri 22,8 — jadi jendela caps dipertahankan sama seperti
+aslinya, hanya teksnya yang diganti). Teruji hijau 2026-11-17
+(`scripts/examples/spec-code-pr-kecil.json`):
+
+```json
+{ "file": "template-code.html",
+  "title": "PR Kecil, Drama Besar",
+  "sub": "reviewer vs penulis kode",
+  "end": "Kamu tim reviewer atau tim penulis?",
+  "caps": [[3, 6, "PR-ku cuma sepuluh baris.", 0],
+           [6.2, 9.2, "Sepuluh baris, lima belas komentar.", 1],
+           [9.4, 12.2, "Komentarmu lebih panjang dari kodenya.", 0],
+           [12.4, 15.2, "Panjang itu tandanya teliti.", 1],
+           [15.8, 18.2, "Eh, tesnya merah bareng?!", 2],
+           [18.4, 20.8, "Satu kasus, kita berdua lupa.", 0],
+           [20.8, 22.6, "Satu baris, semua hijau.", 1],
+           [22.9, 25.9, "Kode terbaik itu hasil gabungan.", 2]],
+  "shots": [[0, [0, 2.2, 6.2], [0, 0.9, 0]],
+            [3.1, [-1.45, 1.35, 4], [-1.6, 0.82, 0]],
+            [6.3, [1.45, 1.35, 4], [1.6, 0.85, 0]],
+            [9.4, [0, 1.5, 5.0], [0, 0.85, 0]],
+            [12.8, [-0.3, 1.4, 5.7], [0, 0.85, 0]],
+            [15.9, [0, 1.4, 5.8], [0, 0.85, 0]],
+            [18.4, [-1.35, 1.25, 4.2], [-1.55, 0.85, 0]],
+            [20.8, [1.35, 1.25, 4.2], [1.55, 0.85, 0]],
+            [23, [0, 1.9, 6.4], [0, 0.95, 0]],
+            [26.6, [0, 2, 6.6], [0, 0.9, 0]]],
+  "props": {"claude.x": -1.5,
+            "claude.color": "#e07840"} }
+```
+
+Penjelasan tiap field: `file` = template basis. `title`/`sub` = judul +
+subjudul di overlay pembuka (`#title`, sub di `<small>`). `end` = baris end
+card (`#end`; baris kredit `by @hanzvibes` dipertahankan otomatis).
+`caps` = 8 caption lengkap (jendela sama seperti aslinya supaya sinkron
+dengan beat papan skor; speaker 2 = keduanya bicara/reaksi bareng).
+`shots` = 10 shot lengkap; yang diubah hanya 2: shot ke-4 (9,4 dtk) kamera
+lebih dekat (z 5,4 → 5,0) dan shot ke-9 (23 dtk) lebih lebar (z 6 → 6,4,
+y 1,7 → 1,9) untuk momen seri. `props` = geser Claude dari x -1,7 ke -1,5
+(gap dengan Codex tetap 3,2) + ubah warna aksen Claude oranye `#d97757` →
+`#e07840` (mengubah material maskot `OR=M(0x...)` DAN warna bubble `CC[0]`
+sekaligus — sinkronisasi otomatis). `"vo"` sengaja tidak diisi:
+template-code VO-nya turunan (`caps.map`), jadi narasi mengikuti teks caps
+baru otomatis. Perintah uji:
+`node scripts/apply-edit.mjs --file template-code.html --edit scripts/examples/spec-code-pr-kecil.json --out /tmp/out-code.html`
+→ `ok`, `node --check` lolos untuk kedua blok `<script>` inline, kredit
+`@hanzvibes` tetap 2.
+
+### Matriks per template (12/12 — dari inventarisasi format nyata, bukan asumsi)
+
+`Teks` = judul/sub/end. `Caps n (arity)` = jumlah caption + arity
+(3 = tanpa speaker, 4 = dengan speaker). `VO` = `turunan` bila
+`const VO=caps.map(c=>c[2])`, `literal` bila `const VO=[...]` (jumlah baris).
+
+| Template | LEN | Caps | Shots | VO | Props yang bisa diedit |
+|---|---|---|---|---|---|
+| template.html (Versus) | 28 | 7 (4) | 9 | turunan | claude.x, codex.x, codex.scale, claude.color, codex.color, board.y, monitor.claude.x, monitor.codex.x |
+| template-trio.html | 32 | 9 (4) | 10 | turunan | 12 props: 8 di atas + gemini.x, gemini.scale, gemini.color, monitor.gemini.x |
+| template-code.html | 30 | 8 (4) | 10 | turunan | 12 props: 8 Versus + board.claude.start, board.claude.final, board.codex.start, board.codex.final (`CL0/CL1/CX0/CX1` = [KEBERSIHAN, TES LULUS, PERFORMA], 0–100) |
+| template-kuota.html | 34 | 14 (4) | 13 | literal (14) | 9 props: 8 Versus + tank.curve (`RK` keyframe [detik, %]) |
+| template-rival.html | 34 | 13 (4) | 12 | literal (13) | 9 props: 8 Versus + rival.notes (`NT`: `{f,to,a,b,o,r,tx}`) |
+| template-perang.html | 34 | 13 (4) | 15 | literal (13) | 9 props: claude.x, codex.x (via `gx`), claude.scale, codex.scale (via `gs`), claude.color, codex.color, board.y, war.spawns (`SP`), war.catapults (`EV`) — tanpa monitor (tidak pakai mkMon) |
+| template-typing.html | 26 | 6 (3) | 8 | literal (6) | 6 props: claude.color, screen.x, screen.y, mug.x, window.x, lamp.x |
+| template-deploy.html | 29 | 8 (3) | 9 | turunan | 6 props, sama seperti typing |
+| template-bughunter.html | 33 | 10 (4) | 11 | literal (10) | 8 props: 6 typing + typing.windows (`WIN`), typing.lines (`TL`) |
+| template-bomb.html | 33 | 10 (4) | 11 | literal (10) | 8 props, sama seperti bughunter |
+| template-meeting.html | 33 | 10 (4) | 10 | literal (10) | 8 props: claude.color, screen.x, screen.y, window.x, lamp.x, typing.windows, typing.lines, meeting.end (`MEET_END`) — tanpa mug |
+| template-sleep.html | 36 | 3 (4) | 10 | literal (3) | 6 props, sama seperti typing |
+
+Nilai awal tiap prop + alasan nonaktifnya: `node scripts/apply-edit.mjs
+--list-props <file>` (deterministik — baca dari file template itu sendiri).
+
+### Props yang TIDAK bisa diedit + alasannya (jangan dipalsukan)
+
+- **Posisi Z maskot**: hanya X yang literal (`X=`/`gx=`); Z dihitung di
+  `frame()` (`-.1*wr` dsb.), bukan nilai literal.
+- **Skala Claude** (kecuali perang via `gs[0]`): skala 1 implisit, tidak ada
+  literal `cm.scale.setScalar(...)`. Ubah ukuran relatif lewat
+  `codex.scale` / `gemini.scale`. Perang: skala efektif = `gs` karena
+  `frame()` menimpa `G[i].scale` dari `gs[i]` tiap frame — `dm.scale`
+  di perang tidak berpengaruh (jangan edit).
+- **Ekspresi maskot** (`drawFace`): tidak ada nilai literal ekspresi;
+  ekspresi mengikuti faktor cerita (`ar` marah, `jy` senang, `sh` syok,
+  `ko`, `tr` lelah) yang terikat pada beat. Mengubahnya butuh edit kode
+  `frame()`, bukan prop.
+- **Posisi X maskot tunggal** (typing/deploy/bughunter/bomb/meeting/sleep):
+  dihitung di `frame()` dari sway/turn (`const x=...`), bukan literal.
+- **Aksen bubble single-character**: `claude.color` mengubah material
+  maskot (`OR=M(0x...)`) saja; border bubble `#cap` di template tersebut
+  hardcoded `#d97757` di `<style>` dan tidak mengikuti prop. (Di template
+  multi-karakter, bubble mengikuti `CC[i]` yang disinkronkan otomatis.)
+- **Benteng perang**: posisi tersebar di banyak panggilan `box()` (tidak ada
+  satu literal "benteng") — tidak ada prop benteng.
+- **Keyboard rival**: posisi dasar `kb.position.set(0,.12,.8)` ditimpa tiap
+  frame oleh `kx` (keyboard war) — mengeditnya tidak berpengaruh.
+- **Boss sleep** (`boss.position.set(30,0,0)`): figur latar yang diparkir
+  jauh di luar frame (x=30), bukan maskot utama.
+- **Skor papan selain template-code**: template.html/trio/rival/kuota/perang
+  menghitung skor dari sinus / envelope / `REM(t)` / `EV` — tidak ada
+  literal skor; edit sumbernya (`tank.curve`, `war.spawns`, `war.catapults`)
+  bila tersedia.
+- **Warna cairan tangki kuota** (`tkLiq`): material ditimpa tiap frame dari
+  `REM(t)` (kuning → merah → hijau) — edit `tank.curve`, bukan warna.
+- **Beat cerita** (`T_BOARD`/`T_REF`/`T_BUG`/`T_FIX`/`T_TIE` di code,
+  `MEET_END` di meeting adalah pengecualian karena dipakai bersama):
+  konstanta beat dibaca bersama oleh papan, monitor, dan caps/shots —
+  mengubah satu literal saja merusak sinkron. `meeting.end` BOLEH diedit
+  karena `MEET_END` memang dipakai bersama timer + confetti + spin + layar;
+  caps/shots di sekitar nilai lama tetap harus digeser di spec yang sama.
+- **Countdown bom** (`RM(t)`, template-bomb): fungsi murni, bukan literal.
+- **Isi layar/monitor** (kode editor `CODEL`/`FIXL`, baris terminal `L`,
+  teks `drawScr`): inline di kode canvas — edit lewat caps/`typing.lines`,
+  bukan prop.
+
+### Validasi (CLI — gagal keras = exit non-zero, tanpa output)
+
+- Teks: pola `#title`/`#end` harus ditemukan (regex sama dengan
+  `lib/studio.ts` `setText()`).
+- Caps: terurut, `0<=t0<t1<=LEN`, tidak tumpang tindih, kata/detik ≤ 2,5,
+  speaker 0..2, arity = arity template.
+- Shots: terurut naik ketat, `0<=t0<=LEN`, `[t0,[x,y,z],[x,y,z]]`.
+- VO: panjang == jumlah caps akhir.
+- Props: id dikenal + tersedia di template itu + nilai dalam rentang
+  (`min`/`max` tiap def, warna `#rrggbb`, validator per-def: skor papan 3
+  bilangan bulat 0–100; `tank.curve` keyframe terurut, detik pertama 0,
+  persen 0–100; `rival.notes` `f` 0/1, `a<b`, `o>=b` atau 99, `tx` 1–2
+  baris ≤14 karakter; `war.spawns` 1–8 waktu per pihak; `war.catapults`
+  baris 6 angka, pihak 0/1; `typing.windows` disjoint + `typing.lines`
+  jumlah baris sama + tiap jendela ≥ huruf/27 detik).
+- Validasi silang pada HTML AKHIR (nilai gabungan spec + template):
+  gap antar maskot > 0,1 DAN ≥ 2,5 (anggaran geser-ke-tengah saat
+  argue/joy/typing, supaya lengan tidak clipping); framing shot 0 (lebar
+  tampak = 0,975 × jarak kamera; |x| maskot + 0,6 ≤ setengah lebar tampak);
+  gap antar monitor ≥ 0,2 (aturan no-coplanar); `meeting.end` sesudah
+  jendela ketik terakhir.
+- Sesudah edit: `node --check` semua blok `<script>` inline; kredit
+  `@hanzvibes` tidak boleh berkurang; `--out` tidak boleh di dalam
+  `public/templates/` atau sama dengan input.
+
+### Catatan sinkronisasi (rekonsiliasi 2026-11-17 — divergensi sudah disatukan)
+
+Dua worker sebelumnya menghasilkan `lib/studio.ts` (17 def) dan
+`scripts/apply-edit.mjs` (29 def) yang berbeda; rekonsiliasi menyatukan
+keduanya jadi satu kebenaran (total **29 def di kedua file**, diverifikasi
+`node scripts/sync-check.mjs`: 12/12 template byte-identik lib == mjs,
+modul + CLI + alias array). Yang diperbaiki:
+
+- **Monitor trio TERTUKAR di `lib/studio.ts`**: `monitor.codex.x` menunjuk
+  panggilan mkMon ke-3 (index 2 = monitor Gemini) dan `monitor.gemini.x`
+  menunjuk ke-2 (index 1 = monitor Codex). Urutan panggilan trio yang benar:
+  monL=-2,6 [0] Claude, monR=0 [1] Codex, monG=2,6 [2] Gemini. Kini benar
+  di kedua file (codex = mkMon index 1, gemini = mkMon index 2).
+- **Skala perang**: `codex.scale` di `lib/studio.ts` menunjuk
+  `dm.scale.setScalar(.85)` yang ditimpa `frame()` dari `gs[1]` tiap frame
+  (perang baris 287) — edit itu tidak terlihat. Kini di kedua file:
+  `codex.scale` perang -> `gs[1]` dan `claude.scale` (baru, perang saja)
+  -> `gs[0]`; di template lain `dm.scale.setScalar` tetap efektif.
+- **Def props baru diport ke `lib/studio.ts`**: `board.*.start/final`,
+  `tank.curve`, `rival.notes`, `war.spawns`, `war.catapults`,
+  `typing.windows`, `typing.lines`, `meeting.end` (+ anchor baru
+  `{t:"whole"}` dan `{t:"assign"}` + `parseJsArray` bisa mem-parse object
+  untuk `NT` + validator `boardScoreErr`/`tankCurveErr`/`rivalNotesErr`/
+  `warSpawnsErr`/`warCatapultsErr`/`typingWindowsErr`/`typingLinesErr`).
+- **`lib/studio.ts` `validateCaps` menandai kata/detik > 2,5 sebagai warning**
+  (untuk UI); **CLI memberlakukannya sebagai error** (tugas skill).
+  Perbedaan ini DISENGAJA dan dipertahankan.
+- **Bentuk `props`**: kanonik = object map `{"id": value}` (dulu array);
+  array `[{"id","value"}]` adalah alias lama yang tetap diterima —
+  `normalizeProps()` di dalam `applyEdits`/`setProps`/`validateProps`
+  kedua file (juga `scripts/export.mjs` ikut jalur yang sama), jadi
+  kedua bentuk memberi hasil yang sama di semua jalur.
+- **Cek silang WIN/TL + meeting.end**: di kedua file BUKAN bagian
+  `validateProps()` — di `.mjs` ada di `crossCheckFinal()` (HTML akhir),
+  di lib ada di `crossCheckProps()` (map props); UI Studio memanggil
+  keduanya supaya Terapkan tetap terblokir bila tidak konsisten.
+
+
+
 Produces ONE `.html` file: a timed, looping 3D short film rendered live with three.js. Never write from scratch. Copy a template, then swap characters, props, captions and palette.
 
 Templates in `assets/`:
@@ -226,6 +544,19 @@ Single file. Scripts only from cdnjs.cloudflare.com, cdn.jsdelivr.net/npm/, cdn.
 - [ ] Reply is short: what was built, assumptions, what was not verified, one offer for the next tweak
 
 ## Changelog
+
+- v3.15: Short Studio React — semua 12 template full editable lewat spec edit
+  kanonik (`scripts/apply-edit.mjs`: setText/setCaps/setShots/setVO/setProps
+  dengan bracket-matching + validasi keras + `node --check` + `--list-props`;
+  contoh teruji `scripts/examples/spec-code-pr-kecil.json` dan
+  `spec-kuota-hemat.json`); matriks per template + daftar props yang tidak
+  bisa diedit + alasannya; Studio UI: tab Props, edit tersimpan
+  (`ss.edits.v1`), "Video Buatan Saya" (`ss.mine.v1`, tidak pernah menimpa
+  12 template asli). Perbaikan: anchor monitor trio tertukar (Codex/Gemini)
+  dan skala perang harus lewat `gs`, bukan `dm.scale`. Batasan yang masih
+  terbuka: `lint_short.py` tidak ada di repo (ambil dari skill pack);
+  render headless di VM ini terhalang kebijakan WebGL Chromium (lihat
+  "Short Studio React" di atas).
 
 - v3.14: `template-perang.html` revised: realistic punches (wind-up, strike, recoil, hit reaction, KO), softer mascot motion (squash/stretch, head and arm lag, leg gait, hop arc out of portals), collision-free layout (verified by a node simulation), event-relevant particles, Catmull-Rom camera with no stop-and-go and no high-frequency jitter. Still not rendered in three.js here; smoke-tested `frame()` over 1020 frames with stubbed three.
 
