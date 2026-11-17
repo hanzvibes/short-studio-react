@@ -1,0 +1,55 @@
+{
+  "results": [
+    {
+      "name": "NOL-teknis [390 tab Teks]",
+      "pass": true,
+      "extra": "bersih"
+    },
+    {
+      "name": "NOL-teknis [390 tab Shot]",
+      "pass": true,
+      "extra": "bersih"
+    },
+    {
+      "name": "NOL-teknis [390 tab Caption]",
+      "pass": true,
+      "extra": "bersih"
+    },
+    {
+      "name": "NOL-teknis [390 tab Objek]",
+      "pass": true,
+      "extra": "bersih"
+    },
+    {
+      "name": "D0 dialog Simpan terbuka (390)",
+      "pass": false,
+      "extra": ""
+    },
+    {
+      "name": "D1a caption baru masuk srcdoc sesudah Terapkan",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "D1b caption baru tampil di preview (t=4)",
+      "pass": false,
+      "extra": "sub: (tidak ada #sub/#cap)"
+    },
+    {
+      "name": "D2 shot 2 mulai berubah di srcdoc",
+      "pass": true,
+      "extra": "baru=3.3 sesudah: ov()} // timeline const shots=[[0,[0,2.2,6.2],[0,0.9,0]],[3.3,[-1.45,1.35,4],[-1.6,0.82,0]],[6.3,[1.45,1.35,4],[1.6,0.85,"
+    },
+    {
+      "name": "D3a dialog Simpan sebagai video baru terbuka",
+      "pass": false,
+      "extra": ""
+    },
+    {
+      "name": "E1 nol console/page error (bagian 3, template sehat)",
+      "pass": true,
+      "extra": ""
+    }
+  ],
+  "errors": []
+}

@@ -3,6 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   BRIDGE,
+  OBJECTS,
   applyEdits,
   clamp,
   crossCheckProps,
@@ -92,9 +93,391 @@ const TOUR_STEPS = [
   { el: "#drawer", t: "Project bin", p: "Semua 12 short ada di panel kiri. Cari lewat kolom pencarian; teks yang sudah diedit ditandai titik biru." },
   { el: ".viewer", t: "Viewer 9:16", p: "Komposisi 1080×1920. Klik preview atau Space untuk memutar. Garis bantu aman bisa dinyalakan lewat ikon grid atau tombol G." },
   { el: ".timeline", t: "Timeline ala NLE", p: "V1 berisi shot, T1 caption per pembicara, A1 narasi. Klik klip untuk memilih, seret ruler untuk scrub, dan atur zoom di kanan atas." },
-  { el: ".inspector", t: "Inspector", p: "Ubah judul, subjudul, dan end card di tab Teks, lalu Terapkan (Ctrl+Enter). Tab Shot, Caption, dan Props menampilkan klip dan properti yang bisa diedit — semua diterapkan bersamaan." },
+  { el: ".inspector", t: "Inspector", p: "Ubah judul, subjudul, dan end card di tab Teks, lalu Terapkan (Ctrl+Enter). Tab Shot, Caption, dan Objek menampilkan klip dan objek yang bisa diedit — semua diterapkan bersamaan." },
   { el: ".tb-actions", t: "Perintah cepat", p: "Ctrl+K membuka palet perintah, D mengganti tema, dan Ekspor membuatkan perintah MP4. Tekan ? untuk semua pintasan." },
 ];
+
+/** Zona ketuk-objek-di-preview per template (tata letak shot lebar,
+ *  koordinat 0..1 dari kiri atas). Tebakan terbaik saja: shot close-up
+ *  bisa berbeda susunannya, dan objek kecil (cangkir, lampu, jendela)
+ *  sengaja tidak punya zona — daftar objek di tab Objek selalu bisa
+ *  diandalkan. Zona diperiksa berurutan; yang pertama cocok menang. */
+const CLICK_ZONES: Record<string, { x0: number; x1: number; y0: number; y1: number; obj: string }[]> = {
+  "template.html": [
+    { x0: 0.3, x1: 0.7, y0: 0.02, y1: 0.2, obj: "board" },
+    { x0: 0.02, x1: 0.48, y0: 0.35, y1: 0.95, obj: "claude" },
+    { x0: 0.52, x1: 0.98, y0: 0.35, y1: 0.95, obj: "codex" },
+  ],
+  "template-trio.html": [
+    { x0: 0.3, x1: 0.7, y0: 0.02, y1: 0.2, obj: "board" },
+    { x0: 0.02, x1: 0.36, y0: 0.35, y1: 0.95, obj: "claude" },
+    { x0: 0.36, x1: 0.64, y0: 0.3, y1: 0.9, obj: "gemini" },
+    { x0: 0.64, x1: 0.98, y0: 0.35, y1: 0.95, obj: "codex" },
+  ],
+  "template-code.html": [
+    { x0: 0.3, x1: 0.7, y0: 0.02, y1: 0.2, obj: "board" },
+    { x0: 0.02, x1: 0.48, y0: 0.35, y1: 0.95, obj: "claude" },
+    { x0: 0.52, x1: 0.98, y0: 0.35, y1: 0.95, obj: "codex" },
+  ],
+  "template-kuota.html": [
+    { x0: 0.3, x1: 0.7, y0: 0.02, y1: 0.2, obj: "board" },
+    { x0: 0.38, x1: 0.62, y0: 0.3, y1: 0.75, obj: "tank" },
+    { x0: 0.02, x1: 0.38, y0: 0.35, y1: 0.95, obj: "claude" },
+    { x0: 0.62, x1: 0.98, y0: 0.35, y1: 0.95, obj: "codex" },
+  ],
+  "template-rival.html": [
+    { x0: 0.3, x1: 0.7, y0: 0.02, y1: 0.2, obj: "board" },
+    { x0: 0.02, x1: 0.48, y0: 0.35, y1: 0.95, obj: "claude" },
+    { x0: 0.52, x1: 0.98, y0: 0.35, y1: 0.95, obj: "codex" },
+  ],
+  "template-perang.html": [
+    { x0: 0.35, x1: 0.65, y0: 0.02, y1: 0.22, obj: "war" },
+    { x0: 0.02, x1: 0.3, y0: 0.4, y1: 0.9, obj: "fort" },
+    { x0: 0.7, x1: 0.98, y0: 0.4, y1: 0.9, obj: "fort" },
+    { x0: 0.3, x1: 0.5, y0: 0.4, y1: 0.9, obj: "claude" },
+    { x0: 0.5, x1: 0.7, y0: 0.4, y1: 0.9, obj: "codex" },
+  ],
+  "template-typing.html": [
+    { x0: 0.1, x1: 0.9, y0: 0.03, y1: 0.3, obj: "screen" },
+    { x0: 0.25, x1: 0.75, y0: 0.3, y1: 0.95, obj: "claude" },
+  ],
+  "template-deploy.html": [
+    { x0: 0.1, x1: 0.9, y0: 0.03, y1: 0.3, obj: "screen" },
+    { x0: 0.25, x1: 0.75, y0: 0.3, y1: 0.95, obj: "claude" },
+  ],
+  "template-bughunter.html": [
+    { x0: 0.1, x1: 0.9, y0: 0.03, y1: 0.3, obj: "screen" },
+    { x0: 0.25, x1: 0.75, y0: 0.3, y1: 0.95, obj: "claude" },
+  ],
+  "template-bomb.html": [
+    { x0: 0.1, x1: 0.9, y0: 0.03, y1: 0.3, obj: "screen" },
+    { x0: 0.25, x1: 0.75, y0: 0.3, y1: 0.95, obj: "claude" },
+  ],
+  "template-meeting.html": [
+    { x0: 0.1, x1: 0.9, y0: 0.03, y1: 0.3, obj: "screen" },
+    { x0: 0.25, x1: 0.75, y0: 0.3, y1: 0.95, obj: "claude" },
+  ],
+  "template-sleep.html": [
+    { x0: 0.68, x1: 0.98, y0: 0.3, y1: 0.85, obj: "boss" },
+    { x0: 0.15, x1: 0.68, y0: 0.3, y1: 0.95, obj: "claude" },
+  ],
+};
+
+/** Petakan ketukan preview (x, y ternormalisasi) ke kunci objek, atau
+ *  null bila tidak ada zona yang cocok / objeknya tidak ada di template
+ *  ini. `avail` = kunci objek yang punya minimal satu pengaturan. */
+function pickObjAt(file: string, x: number, y: number, avail: Set<string>): string | null {
+  const zones = CLICK_ZONES[file] || [];
+  for (const z of zones) {
+    if (x >= z.x0 && x <= z.x1 && y >= z.y0 && y <= z.y1 && avail.has(z.obj)) return z.obj;
+  }
+  return null;
+}
+
+/** Buang awalan "id pengaturan:" dari pesan error supaya yang tampil
+ *  hanya kalimat awamnya (pemetaan ke baris sudah dilakukan pemanggil). */
+const stripPropId = (e: string) => e.replace(/^[\w.]+( dan [\w.]+)?:\s*/, "");
+
+/** Pilihan wajah maskot biru di layar (face.codex): -1 = ikut cerita. */
+const FACE_CHOICES: { v: number; label: string }[] = [
+  { v: -1, label: "Ikut cerita" },
+  { v: 0, label: "Biasa" },
+  { v: 1, label: "Marah" },
+  { v: 2, label: "Senang" },
+  { v: 3, label: "Lelah" },
+];
+
+/** Label tiga angka di papan skor (urutan sama seperti di template). */
+const SCORE_LABELS = ["Kebersihan", "Tes lulus", "Performa"];
+
+/** Rentang slider untuk satu pengaturan (rentang per template bila ada). */
+function rangeOf(def: PropDef, file: string): { min: number; max: number; step: number } {
+  const r = def.rangeByFile?.[file];
+  return r ?? { min: def.min ?? 0, max: def.max ?? 0, step: def.step ?? 0.05 };
+}
+/** Tampilkan nilai slider dengan satuan yang dimengerti. */
+function fmtSliderVal(v: number, def: PropDef, file: string): string {
+  const r = rangeOf(def, file);
+  const num = Number.isInteger(r.step) ? String(Math.round(v)) : v.toFixed(2);
+  return def.unit ? `${num} ${def.unit}` : num;
+}
+
+/** Satu baris kontrol slider angka + tombol kembali ke asli. */
+function ObjSlider({ def, file, value, orig, err, onNum }: {
+  def: PropDef; file: string; value: number; orig: PropValue | undefined; err?: string[]; onNum: (v: number) => void;
+}) {
+  const r = rangeOf(def, file);
+  const changed = JSON.stringify(value) !== JSON.stringify(orig);
+  return (
+    <div className={`prop-ctl${err?.length ? " err" : ""}`}>
+      <div className="prop-ctl-h">
+        <span>{def.plain}</span>
+        <b>{fmtSliderVal(value, def, file)}</b>
+        {changed && typeof orig === "number" && (
+          <button className="btn ghost small" title="Kembalikan ke nilai asli" onClick={() => onNum(orig)}>↺</button>
+        )}
+      </div>
+      <input type="range" min={r.min} max={r.max} step={r.step} value={value} aria-label={def.plain}
+        onChange={(e) => onNum(parseFloat(e.target.value))} />
+      {def.hint && <em className="prop-hint">{def.hint}</em>}
+      {err?.map((e, k) => <p key={k} className="valid-err row-err">{stripPropId(e)}</p>)}
+    </div>
+  );
+}
+
+/** Lima tombol pilihan wajah maskot biru di layar. */
+function ObjChoice({ def, value, err, onNum }: {
+  def: PropDef; value: number; err?: string[]; onNum: (v: number) => void;
+}) {
+  return (
+    <div className={`prop-ctl${err?.length ? " err" : ""}`}>
+      <div className="prop-ctl-h"><span>{def.plain}</span></div>
+      <div className="choice-row" role="group" aria-label={def.plain}>
+        {FACE_CHOICES.map((c) => (
+          <button key={c.v} type="button" className={`choice${value === c.v ? " on" : ""}`} aria-pressed={value === c.v}
+            onClick={() => onNum(c.v)}>{c.label}</button>
+        ))}
+      </div>
+      {def.hint && <em className="prop-hint">{def.hint}</em>}
+      {err?.map((e, k) => <p key={k} className="valid-err row-err">{stripPropId(e)}</p>)}
+    </div>
+  );
+}
+
+/** Pemilih warna saja (tanpa kode hex). */
+function ObjColor({ def, value, err, onVal }: {
+  def: PropDef; value: string; err?: string[]; onVal: (v: string) => void;
+}) {
+  return (
+    <div className={`prop-ctl${err?.length ? " err" : ""}`}>
+      <div className="prop-ctl-h"><span>{def.plain}</span>
+        <span className="prop-color">
+          <input type="color" value={/^#[0-9a-fA-F]{6}$/.test(value) ? value : "#d97757"} aria-label={def.plain}
+            onChange={(e) => onVal(e.target.value)} />
+        </span>
+      </div>
+      {def.hint && <em className="prop-hint">{def.hint}</em>}
+      {err?.map((e, k) => <p key={k} className="valid-err row-err">{stripPropId(e)}</p>)}
+    </div>
+  );
+}
+
+/** Input teks (atau area teks besar untuk isi layar editor). */
+function ObjText({ def, value, err, onVal }: {
+  def: PropDef; value: string; err?: string[]; onVal: (v: string) => void;
+}) {
+  return (
+    <div className={`prop-ctl${err?.length ? " err" : ""}`}>
+      <div className="prop-ctl-h"><span>{def.plain}</span></div>
+      {def.control === "textarea" ? (
+        <textarea rows={8} spellCheck={false} value={value} aria-label={def.plain} onChange={(e) => onVal(e.target.value)} />
+      ) : (
+        <input type="text" value={value} aria-label={def.plain} onChange={(e) => onVal(e.target.value)} />
+      )}
+      {def.hint && <em className="prop-hint">{def.hint}</em>}
+      {err?.map((e, k) => <p key={k} className="valid-err row-err">{stripPropId(e)}</p>)}
+    </div>
+  );
+}
+
+/** Tiga slider skor papan (Kebersihan / Tes lulus / Performa). */
+function ObjScores({ def, value, err, onArr }: {
+  def: PropDef; value: number[]; err?: string[]; onArr: (v: unknown[]) => void;
+}) {
+  return (
+    <div className={`prop-ctl${err?.length ? " err" : ""}`}>
+      <div className="prop-ctl-h"><span>{def.plain}</span></div>
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="prop-sub">
+          <div className="prop-ctl-h"><span>{SCORE_LABELS[i]}</span><b>{Math.round(value[i] ?? 0)}</b></div>
+          <input type="range" min={0} max={100} step={1} value={value[i] ?? 0} aria-label={`${def.plain} — ${SCORE_LABELS[i]}`}
+            onChange={(e) => { const next = [...value]; next[i] = parseFloat(e.target.value); onArr(next); }} />
+        </div>
+      ))}
+      {def.hint && <em className="prop-hint">{def.hint}</em>}
+      {err?.map((e, k) => <p key={k} className="valid-err row-err">{stripPropId(e)}</p>)}
+    </div>
+  );
+}
+
+/** Kurva tangki kuota: baris [detik, persen] dengan dua slider.
+ *  Baris pertama selalu detik 0 (tangki mulai penuh); slider detik
+ *  dijepit ke baris tetangga supaya urutan tetap naik. */
+function ObjCurve({ def, value, len, err, onArr }: {
+  def: PropDef; value: number[][]; len: number; err?: string[]; onArr: (v: unknown[]) => void;
+}) {
+  const setCell = (i: number, k: 0 | 1, v: number) => {
+    const next = value.map((r) => [...r]);
+    next[i][k] = v;
+    onArr(next);
+  };
+  const last = value[value.length - 1];
+  const canAdd = value.length > 0 && last && last[0] < len - 0.1;
+  return (
+    <div className={`prop-ctl${err?.length ? " err" : ""}`}>
+      <div className="prop-ctl-h"><span>{def.plain}</span><em>{value.length} baris</em></div>
+      {value.map((row, i) => {
+        const prev = i > 0 ? value[i - 1][0] : 0;
+        const nxt = i + 1 < value.length ? value[i + 1][0] : len;
+        const lo = i === 0 ? 0 : Math.min(prev + 0.1, nxt - 0.1);
+        const hi = Math.max(lo, nxt - 0.1);
+        return (
+          <div key={i} className="prop-sub">
+            <div className="prop-ctl-h"><span>Baris {i + 1}</span>
+              {i > 0 && value.length > 2 && (
+                <button className="btn ghost small" title="Hapus baris ini" onClick={() => onArr(value.filter((_, j) => j !== i))}>Hapus</button>
+              )}
+            </div>
+            <div className="prop-ctl-h"><span>Detik</span><b>{row[0].toFixed(1)} dtk</b></div>
+            {i === 0 ? (
+              <p className="prop-hint">Baris pertama selalu detik 0 — tangki mulai penuh.</p>
+            ) : (
+              <input type="range" min={lo} max={hi} step={0.1} value={row[0]} aria-label={`Baris ${i + 1} detik`}
+                onChange={(e) => setCell(i, 0, parseFloat(e.target.value))} />
+            )}
+            <div className="prop-ctl-h"><span>Sisa kuota</span><b>{Math.round(row[1])}%</b></div>
+            <input type="range" min={0} max={100} step={1} value={row[1]} aria-label={`Baris ${i + 1} sisa kuota`}
+              onChange={(e) => setCell(i, 1, parseFloat(e.target.value))} />
+          </div>
+        );
+      })}
+      <button className="btn ghost small" disabled={!canAdd} onClick={() => { if (last) onArr([...value, [Math.round((last[0] + 1) * 10) / 10, last[1]]]); }}>+ Tambah baris</button>
+      {def.hint && <em className="prop-hint">{def.hint}</em>}
+      {err?.map((e, k) => <p key={k} className="valid-err row-err">{stripPropId(e)}</p>)}
+    </div>
+  );
+}
+
+/** Jendela ketik: baris [mulai, selesai] dengan dua slider.
+ *  Slider dijepit ke baris tetangga supaya tidak tumpang tindih. */
+function ObjWindows({ def, value, len, err, onArr }: {
+  def: PropDef; value: number[][]; len: number; err?: string[]; onArr: (v: unknown[]) => void;
+}) {
+  const setCell = (i: number, k: 0 | 1, v: number) => {
+    const next = value.map((r) => [...r]);
+    next[i][k] = v;
+    onArr(next);
+  };
+  const last = value[value.length - 1];
+  const canAdd = value.length > 0 && last && last[1] < len - 0.2;
+  return (
+    <div className={`prop-ctl${err?.length ? " err" : ""}`}>
+      <div className="prop-ctl-h"><span>{def.plain}</span><em>{value.length} baris</em></div>
+      {value.map((row, i) => {
+        const prevEnd = i > 0 ? value[i - 1][1] : 0;
+        const nextStart = i + 1 < value.length ? value[i + 1][0] : len;
+        return (
+          <div key={i} className="prop-sub">
+            <div className="prop-ctl-h"><span>Baris {i + 1}</span>
+              {value.length > 1 && (
+                <button className="btn ghost small" title="Hapus baris ini" onClick={() => onArr(value.filter((_, j) => j !== i))}>Hapus</button>
+              )}
+            </div>
+            <div className="prop-ctl-h"><span>Mulai</span><b>{row[0].toFixed(1)} dtk</b></div>
+            <input type="range" min={prevEnd} max={Math.max(prevEnd, row[1] - 0.1)} step={0.1} value={row[0]} aria-label={`Baris ${i + 1} mulai`}
+              onChange={(e) => setCell(i, 0, parseFloat(e.target.value))} />
+            <div className="prop-ctl-h"><span>Selesai</span><b>{row[1].toFixed(1)} dtk</b></div>
+            <input type="range" min={Math.min(row[0] + 0.1, nextStart)} max={nextStart} step={0.1} value={row[1]} aria-label={`Baris ${i + 1} selesai`}
+              onChange={(e) => setCell(i, 1, parseFloat(e.target.value))} />
+          </div>
+        );
+      })}
+      <button className="btn ghost small" disabled={!canAdd} onClick={() => { if (last) onArr([...value, [Math.round((last[1] + 0.1) * 10) / 10, Math.min(len, Math.round((last[1] + 1) * 10) / 10)]]); }}>+ Tambah baris</button>
+      {def.hint && <em className="prop-hint">{def.hint}</em>}
+      {err?.map((e, k) => <p key={k} className="valid-err row-err">{stripPropId(e)}</p>)}
+    </div>
+  );
+}
+
+/** Waktu pasukan muncul: dua daftar slider detik (oranye / biru). */
+function ObjSpawns({ def, value, len, err, onArr }: {
+  def: PropDef; value: number[][]; len: number; err?: string[]; onArr: (v: unknown[]) => void;
+}) {
+  const sides = ["Pasukan oranye", "Pasukan biru"] as const;
+  const setCell = (side: 0 | 1, i: number, v: number) => {
+    const next = [[...value[0]], [...value[1]]];
+    next[side][i] = v;
+    onArr(next);
+  };
+  const add = (side: 0 | 1) => {
+    const row = value[side];
+    const lastV = row.length ? row[row.length - 1] : 0;
+    const next = [[...value[0]], [...value[1]]];
+    next[side] = [...row, Math.min(len, Math.round((lastV + 0.5) * 10) / 10)];
+    onArr(next);
+  };
+  const remove = (side: 0 | 1, i: number) => {
+    const next = [[...value[0]], [...value[1]]];
+    next[side] = next[side].filter((_, j) => j !== i);
+    onArr(next);
+  };
+  return (
+    <div className={`prop-ctl${err?.length ? " err" : ""}`}>
+      <div className="prop-ctl-h"><span>{def.plain}</span></div>
+      {([0, 1] as const).map((side) => {
+        const row = value[side] || [];
+        const canAdd = row.length < 8 && (row.length === 0 || row[row.length - 1] < len - 0.1);
+        return (
+          <div key={side} className="prop-sub">
+            <div className="prop-ctl-h"><span>{sides[side]}</span><em>{row.length} kali</em></div>
+            {row.map((t, i) => {
+              const lo = i > 0 ? row[i - 1] + 0.1 : 0;
+              const hi = i + 1 < row.length ? row[i + 1] - 0.1 : len;
+              return (
+                <div key={i}>
+                  <div className="prop-ctl-h"><span>Muncul ke-{i + 1}</span><b>{t.toFixed(1)} dtk</b>
+                    {row.length > 1 && (
+                      <button className="btn ghost small" title="Hapus waktu ini" onClick={() => remove(side, i)}>Hapus</button>
+                    )}
+                  </div>
+                  <input type="range" min={Math.min(lo, hi)} max={Math.max(lo, hi)} step={0.1} value={t} aria-label={`${sides[side]} muncul ke-${i + 1}`}
+                    onChange={(e) => setCell(side, i, parseFloat(e.target.value))} />
+                </div>
+              );
+            })}
+            <button className="btn ghost small" disabled={!canAdd} onClick={() => add(side)}>+ Tambah waktu muncul</button>
+          </div>
+        );
+      })}
+      {def.hint && <em className="prop-hint">{def.hint}</em>}
+      {err?.map((e, k) => <p key={k} className="valid-err row-err">{stripPropId(e)}</p>)}
+    </div>
+  );
+}
+
+/** Daftar baris teks (kode / perintah / pesan): satu baris per baris. */
+function ObjLines({ def, value, err, onArr }: {
+  def: PropDef; value: string[]; err?: string[]; onArr: (v: unknown[]) => void;
+}) {
+  const [text, setText] = useState(value.join("\n"));
+  useEffect(() => { setText(value.join("\n")); }, [value]);
+  return (
+    <div className={`prop-ctl${err?.length ? " err" : ""}`}>
+      <div className="prop-ctl-h"><span>{def.plain}</span><em>{value.length} baris</em></div>
+      <textarea rows={Math.min(10, Math.max(3, value.length + 1))} spellCheck={false} value={text} aria-label={def.plain}
+        onChange={(e) => { setText(e.target.value); onArr(e.target.value.split("\n")); }} />
+      {def.hint && <em className="prop-hint">{def.hint}</em>}
+      {err?.map((e, k) => <p key={k} className="valid-err row-err">{stripPropId(e)}</p>)}
+    </div>
+  );
+}
+
+/** Daftar yang masih ditulis sebagai teks (catatan tempel, ketapel,
+ *  obrolan, tahapan, warna tombol, baris ketikan): penjelasan awam +
+ *  error bila bentuknya tidak sesuai. */
+function ObjJson({ def, text, err, onText }: {
+  def: PropDef; text: string; err?: string; onText: (t: string) => void;
+}) {
+  return (
+    <div className={`prop-ctl${err ? " err" : ""}`}>
+      <div className="prop-ctl-h"><span>{def.plain}</span></div>
+      <textarea rows={6} spellCheck={false} value={text} aria-label={def.plain} onChange={(e) => onText(e.target.value)} />
+      {def.hint && <em className="prop-hint">{def.hint}</em>}
+      <em className="prop-hint">Tulis sebagai daftar seperti nilai aslinya — salah ketik akan ditolak dan Terapkan ditahan.</em>
+      {err && <em className="valid-err">{err}</em>}
+    </div>
+  );
+}
 
 export default function Studio() {
   const [cur, setCur] = useState<TemplateEntry>(TEMPLATES[0]);
@@ -149,7 +532,9 @@ export default function Studio() {
   const [appliedVO, setAppliedVO] = useState<string[] | null>(null);
   const [appliedProps, setAppliedProps] = useState<PropValues>({});
   const [propsAvail, setPropsAvail] = useState<{ def: PropDef; value: PropValue }[]>([]);
-  const [propsUnavail, setPropsUnavail] = useState<{ def: PropDef; reason: string }[]>([]);
+  /** Objek yang sedang dipilih di tab Objek (kunci OBJECTS, mis. "claude").
+   *  null = ikut objek pertama yang ada di template ini. */
+  const [selObj, setSelObj] = useState<string | null>(null);
   /** Teks mentah field JSON untuk prop array (tank.curve, rival.notes,
    *  dsb.) + error parse/validasi per prop. Nilai yang lolos validasi
    *  masuk draftProps; yang tidak lolos menahan Terapkan (lihat arrayErr
@@ -163,7 +548,7 @@ export default function Studio() {
   const [muted, setMuted] = useState(true);
   const [loopOn, setLoopOn] = useState(true);
   const [sel, setSel] = useState<Sel>(null);
-  const [tab, setTab] = useState<"teks" | "shot" | "cap" | "props">("teks");
+  const [tab, setTab] = useState<"teks" | "shot" | "cap" | "objek">("teks");
   const [time, setTime] = useState(0);
   const [ready, setReady] = useState(false);
   const [status, setStatus] = useState<Status>("load");
@@ -214,6 +599,8 @@ export default function Studio() {
   const loopRef = useRef(true);
   const scrubRef = useRef<{ was: boolean } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Timer debounce pratinjau langsung slider (tab Objek). */
+  const liveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tourShownRef = useRef(false);
   const pendingMineRef = useRef<MyVideo | null>(null);
   const stateRef = useRef({ cur, fields, def, applied, base, shots, caps, len, muted, playing, draftCaps, draftShots, draftVO, voTouched, voKindState, origCaps, origShots, draftProps });
@@ -269,6 +656,22 @@ export default function Studio() {
       setPlaying(true);
     }
   }, [st, ready, currentTime]);
+
+  /** Ketuk preview untuk memilih objek (tab Objek aktif): overlay .tap
+   *  menutupi iframe sehingga klik tidak pernah sampai ke bridge di dalam
+   *  template — koordinat dihitung di sini dari overlay itu sendiri.
+   *  Klik tetap memutar/menjeda seperti biasa. */
+  const handleTapClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (tab === "objek") {
+      const r = e.currentTarget.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) {
+        const avail = new Set(propsAvail.map((p) => p.def.obj));
+        const key = pickObjAt(cur.file, (e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height, avail);
+        if (key) setSelObj(key);
+      }
+    }
+    toggle();
+  }, [tab, cur.file, propsAvail, toggle]);
 
   const normalize = useCallback((f: TextFields): TextFields => {
     const o = { ...f };
@@ -347,6 +750,22 @@ export default function Studio() {
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, [fitStage]);
+
+  // Ketuk objek di preview: bridge di iframe mengirim {__stClick:{x,y}}.
+  // Hanya aktif saat tab Objek terbuka; pilihannya tampil di header
+  // "Sedang mengedit". Klik di preview tetap memutar/menjeda seperti biasa.
+  useEffect(() => {
+    if (tab !== "objek") return;
+    const avail = new Set(propsAvail.map((p) => p.def.obj));
+    const onMsg = (e: MessageEvent) => {
+      const c = (e.data as { __stClick?: { x: number; y: number } } | null)?.__stClick;
+      if (!c || typeof c.x !== "number" || typeof c.y !== "number") return;
+      const key = pickObjAt(cur.file, c.x, c.y, avail);
+      if (key) setSelObj(key);
+    };
+    window.addEventListener("message", onMsg);
+    return () => window.removeEventListener("message", onMsg);
+  }, [tab, cur.file, propsAvail]);
 
   // ---------- mount / load ----------
   const mount = useCallback(
@@ -524,7 +943,6 @@ export default function Studio() {
       setVoKindState(vk);
       setHasSpeaker(!!pc && pc.some((c) => c.length === 4));
       setPropsAvail(pp.filter((p) => p.available && p.value !== undefined).map((p) => ({ def: p.def, value: p.value as PropValue })));
-      setPropsUnavail(pp.filter((p) => !p.available).map((p) => ({ def: p.def, reason: p.reason || "Tidak tersedia di template ini." })));
       const origP: PropValues = {};
       pp.forEach((p) => {
         if (p.available && p.value !== undefined) origP[p.def.id] = p.value;
@@ -738,16 +1156,40 @@ export default function Studio() {
   const propErrById = useMemo(() => {
     const m: Record<string, string[]> = {};
     propVal.errors.forEach((e) => {
-      const mt = /^([\w.]+):/.exec(e);
-      if (mt && propsAvail.some((p) => p.def.id === mt[1])) (m[mt[1]] ??= []).push(e);
+      // Bentuk gabungan "claude.x dan claude.sway: ..." ditempel ke kedua baris.
+      const mt = /^([\w.]+)(?: dan ([\w.]+))?:/.exec(e);
+      if (mt) for (const id of [mt[1], mt[2]]) {
+        if (id && propsAvail.some((p) => p.def.id === id)) (m[id] ??= []).push(e);
+      }
     });
     return m;
   }, [propVal, propsAvail]);
+  /** Daftar objek di template ini (tab Objek): nama awam + ikon + warna
+   *  dari OBJECTS, hanya yang punya minimal satu pengaturan. */
+  const objList = useMemo(() => {
+    const byObj = new Map<string, PropDef[]>();
+    propsAvail.forEach((p) => {
+      const arr = byObj.get(p.def.obj) || [];
+      arr.push(p.def);
+      byObj.set(p.def.obj, arr);
+    });
+    return Object.keys(OBJECTS)
+      .filter((k) => byObj.has(k))
+      .map((k) => {
+        const defs = byObj.get(k)!;
+        const changed = defs.some((d) => JSON.stringify(draftProps[d.id]) !== JSON.stringify(origProps[d.id]));
+        return { key: k, ...OBJECTS[k], count: defs.length, changed, defs };
+      });
+  }, [propsAvail, draftProps, origProps]);
+  /** Objek aktif: pilihan user, atau objek pertama bila pilihannya tidak
+   *  ada di template ini (mis. habis ganti template). */
+  const activeObjKey = selObj && objList.some((o) => o.key === selObj) ? selObj : objList[0]?.key ?? null;
+  const activeObj = objList.find((o) => o.key === activeObjKey) ?? null;
   const allWarnings = useMemo(() => [...capVal.warnings, ...shotVal.warnings, ...propVal.warnings], [capVal, shotVal, propVal]);
   const voFollowNote = useMemo(() => {
     if (!capsPending || voTouched) return "";
-    if (voKindState === "literal") return "VO akan mengikuti teks caption baru saat diterapkan.";
-    if (voKindState === "derived") return "VO template ini mengikuti caption otomatis (caps.map).";
+    if (voKindState === "literal") return "Suara akan mengikuti teks caption baru saat diterapkan.";
+    if (voKindState === "derived") return "Suara di video ini mengikuti caption otomatis.";
     return "";
   }, [capsPending, voTouched, voKindState]);
   const anyDirty = useMemo(
@@ -769,14 +1211,14 @@ export default function Studio() {
     if (tc) g.push(`${tc} teks`);
     if (capsPending) g.push("caption");
     if (shotsPending) g.push("shot");
-    if (propsPending) g.push("props");
-    if (voPending) g.push("VO");
+    if (propsPending) g.push("pengaturan objek");
+    if (voPending) g.push("suara");
     return g;
   }, [normalize, fields, applied, capsPending, shotsPending, propsPending, voPending]);
   const applyStateText = useMemo(() => {
     if (!ready) return "Menunggu preview siap…";
     if (allErrors.length) return `Ada ${allErrors.length} error validasi — perbaiki dulu, Terapkan ditahan.`;
-    if (!anyDirty) return "Tidak ada perubahan — ubah teks, caption, shot, atau props untuk mengaktifkan Terapkan.";
+    if (!anyDirty) return "Tidak ada perubahan — ubah teks, caption, shot, atau pengaturan objek untuk mengaktifkan Terapkan.";
     return `Siap diterapkan: ${changeGroups.join(" · ")}.`;
   }, [ready, allErrors.length, anyDirty, changeGroups]);
 
@@ -808,6 +1250,30 @@ export default function Studio() {
     mount(true);
     toast("Semua edit diterapkan");
   }, [base, ready, anyDirty, allErrors.length, saveCurrentFullEdit, hasChanges, cur, normalize, fields, mount, toast]);
+
+  /** Pratinjau langsung saat slider/warna digeser: muat ulang preview
+   *  (debounce ~250 mdtk) tanpa mengubah baseline "diterapkan" dan tanpa
+   *  menyimpan. Hanya jalan saat tab Objek aktif dan nilai barunya lolos
+   *  validasi — nilai yang ditolak tidak memicu pratinjau (slider
+   *  kembali ke nilai lama + error tampil di barisnya). */
+  const scheduleLive = useCallback((candidate: PropValues) => {
+    if (tab !== "objek") return;
+    if (liveTimer.current) clearTimeout(liveTimer.current);
+    liveTimer.current = setTimeout(() => {
+      const v = validateProps(candidate, cur.file, len);
+      const cc = crossCheckProps(candidate, len);
+      if (!v.errors.length && !cc.errors.length) mount(true);
+    }, 250);
+  }, [tab, cur.file, len, mount]);
+
+  /** Ubah satu nilai pengaturan (angka/warna/teks) + pratinjau langsung
+   *  bila jenisnya angka/warna. Teks tidak memicu pratinjau tiap ketik —
+   *  ia diterapkan lewat tombol Terapkan. */
+  const setPropValue = useCallback((def: PropDef, v: PropValue) => {
+    const candidate = { ...stateRef.current.draftProps, [def.id]: v };
+    setDraftProps(candidate);
+    if (def.kind === "number" || def.kind === "color") scheduleLive(candidate);
+  }, [scheduleLive]);
 
   const resetText = useCallback(() => {
     setFields(def);
@@ -848,22 +1314,19 @@ export default function Studio() {
     setArrayText(at);
     setArrayErr({});
     setTimeout(() => mount(true), 0);
-    toast("Props dikembalikan ke asli");
+    toast("Pengaturan objek dikembalikan ke asli");
   }, [origProps, mount, toast, propsAvail]);
 
-  /** Ubah satu prop array lewat field teks JSON. Nilai yang lolos parse +
-   *  validasi (validator per-def + cek silang WIN/TL / meeting.end) masuk
-   *  draftProps; yang tidak lolos hanya menampilkan error dan menahan
-   *  Terapkan (arrayErr masuk allErrors) — draftProps tidak diubah. */
-  const handleArrayPropChange = useCallback((def: PropDef, text: string) => {
-    setArrayText((prev) => ({ ...prev, [def.id]: text }));
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(text);
-    } catch (e) {
-      setArrayErr((prev) => ({ ...prev, [def.id]: `JSON tidak valid: ${String((e as Error).message || e)}` }));
-      return;
-    }
+  /** Terapkan nilai baru untuk satu prop array (sudah ter-parse).
+   *  Nilai yang lolos validasi (validator per-def + cek silang WIN/TL /
+   *  meeting.end) masuk draftProps; yang tidak lolos hanya menampilkan
+   *  error dan menahan Terapkan (arrayErr masuk allErrors) — draftProps
+   *  tidak diubah. Dipakai kontrol slider/daftar maupun field teks.
+   *  `live=true` (slider/daftar saja, bukan field teks) juga memicu
+   *  pratinjau langsung seperti slider angka biasa — debounce yang sama
+   *  di scheduleLive, dan nilai yang ditolak validasi tidak memicu
+   *  pratinjau karena draftProps tidak berubah. */
+  const applyArrayValue = useCallback((def: PropDef, parsed: unknown, live = false) => {
     const candidate = { ...draftProps, [def.id]: parsed as PropValue };
     const v = validateProps(candidate, cur.file, len);
     const cc = crossCheckProps(candidate, len);
@@ -874,8 +1337,8 @@ export default function Studio() {
         (def.id === "meeting.end" && err.startsWith("meeting.end"))
     );
     if (mine.length) {
-      setArrayErr((prev) => ({ ...prev, [def.id]: mine.join(" ") }));
-      return;
+      setArrayErr((prev) => ({ ...prev, [def.id]: mine.map(stripPropId).join(" ") }));
+      return false;
     }
     setArrayErr((prev) => {
       const next = { ...prev };
@@ -883,7 +1346,24 @@ export default function Studio() {
       return next;
     });
     setDraftProps(candidate);
-  }, [draftProps, cur.file, len]);
+    if (live) scheduleLive(candidate);
+    return true;
+  }, [draftProps, cur.file, len, scheduleLive]);
+
+  /** Ubah satu prop array lewat field teks. Nilai yang lolos parse +
+   *  validasi masuk draftProps; yang tidak lolos hanya menampilkan error
+   *  dan menahan Terapkan — draftProps tidak diubah. */
+  const handleArrayPropChange = useCallback((def: PropDef, text: string) => {
+    setArrayText((prev) => ({ ...prev, [def.id]: text }));
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch (e) {
+      setArrayErr((prev) => ({ ...prev, [def.id]: `Tulisannya tidak bisa dibaca: ${String((e as Error).message || e)}` }));
+      return;
+    }
+    applyArrayValue(def, parsed);
+  }, [applyArrayValue]);
 
   /** Spec kanonik edit saat ini (untuk dialog Ekspor + unduh .html). */
   const buildSpec = useCallback((): EditSpec => {
@@ -1728,6 +2208,11 @@ export default function Studio() {
           <div className="panel-h">
             <span className="panel-t"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4V4zm2 2v12h12V6H6z" /></svg><span>Comp 1 · {cur.label}</span></span>
             <span className="chip">1080×1920 · 60 fps</span>
+            {tab === "objek" && activeObj && (
+              <span className="chip obj-chip" title={activeObj.desc}>
+                <span aria-hidden="true">{activeObj.icon}</span> Sedang mengedit: {activeObj.name}
+              </span>
+            )}
             <span className="grow" />
             <button className="ph-icon" aria-pressed={focusView} aria-label={focusView ? "Keluar dari fokus viewer" : "Fokus viewer — sembunyikan timeline dan transport"} title={focusView ? "Keluar dari fokus viewer (Esc)" : "Fokus viewer — sembunyikan timeline & transport"} onClick={() => { setFocusView((v) => !v); toast(!focusView ? "Fokus viewer — timeline disembunyikan" : "Fokus viewer nonaktif"); }}>
               <svg viewBox="0 0 24 24"><path d="M3 5h6v2H5v4H3zm18 0h-6v2h4v4h2zm-18 14h6v-2H5v-4H3zm18 0h-6v-2h4v-4h2z" /></svg>
@@ -1754,7 +2239,7 @@ export default function Studio() {
                   <span className="g-lbl" style={{ left: "10%", top: "10%" }}>safe</span>
                   <span className="g-lbl" style={{ right: "10%", bottom: "10%" }}>title</span>
                 </div>
-                <div className="tap" aria-hidden="true" onClick={toggle}>
+                <div className="tap" aria-hidden="true" onClick={handleTapClick}>
                   <span className="bigplay"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg></span>
                 </div>
                 <div className={`state${status === "err" ? " err" : ""}`} role="status" aria-live="polite">
@@ -1993,7 +2478,7 @@ export default function Studio() {
 
         <aside className="panel inspector" aria-label="Inspector">
           <div className="tabs" role="tablist">
-            {(["teks", "shot", "cap", "props"] as const).map((name) => (
+            {(["teks", "shot", "cap", "objek"] as const).map((name) => (
               <button
                 key={name}
                 className={`tab${tab === name ? " on" : ""}`}
@@ -2002,10 +2487,10 @@ export default function Studio() {
                 tabIndex={tab === name ? 0 : -1}
                 onClick={() => setTab(name)}
               >
-                {name === "teks" ? "Teks" : name === "shot" ? "Shot" : name === "cap" ? "Caption" : "Props"}
+                {name === "teks" ? "Teks" : name === "shot" ? "Shot" : name === "cap" ? "Caption" : "Objek"}
                 {name === "shot" && <span className="n">{shots.length}</span>}
                 {name === "cap" && <span className="n">{caps.length}</span>}
-                {name === "props" && <span className="n">{propsAvail.length}</span>}
+                {name === "objek" && <span className="n">{propsAvail.length}</span>}
               </button>
             ))}
           </div>
@@ -2213,25 +2698,25 @@ export default function Studio() {
                       </Fragment>
                     )) : <p className="hint" style={{ padding: 6 }}>Belum ada caption.</p>}
                     {!hasSpeaker && origCaps !== null && (
-                      <p className="hint">Template ini tidak punya kolom pembicara (caps arity 3).</p>
+                      <p className="hint">Template ini tidak punya kolom pembicara.</p>
                     )}
                   </div>
                 </details>
                 <details className="insp-group">
-                  <summary>Narasi (VO) <em>{voKindState === "literal" ? String(draftVO?.length ?? 0) : voKindState === "derived" ? "ikut caption" : "tidak ada"}</em></summary>
+                  <summary>Narasi <em>{voKindState === "literal" ? String(draftVO?.length ?? 0) : voKindState === "derived" ? "ikut caption" : "tidak ada"}</em></summary>
                   <div className="insp-body" style={{ padding: 4 }}>
                     {voKindState === "literal" && draftVO ? draftVO.map((v, i) => (
                       <label key={i} className="field">
-                        <span>VO #{i + 1}</span>
+                        <span>Suara #{i + 1}</span>
                         <input value={v} aria-label={`Narasi ${i + 1}`}
                           onChange={(e) => { setDraftVO((prev) => (prev || []).map((x, j) => (j === i ? e.target.value : x))); setVoTouched(true); }} />
                       </label>
                     )) : voKindState === "derived" ? (
-                      <p className="hint">VO template ini mengikuti caption otomatis (VO=caps.map(c=&gt;c[2])). Edit caption untuk mengubah narasi.</p>
+                      <p className="hint">Suara di video ini mengikuti caption otomatis. Edit caption untuk mengubah narasi.</p>
                     ) : (
-                      <p className="hint">Template ini tidak punya VO.</p>
+                      <p className="hint">Template ini tidak punya suara.</p>
                     )}
-                    {voTouched && <p className="valid-warn">VO diedit manual — tidak lagi mengikuti teks caption.</p>}
+                    {voTouched && <p className="valid-warn">Suara diedit manual — tidak lagi mengikuti teks caption.</p>}
                     {voFollowNote && <p className={voKindState === "literal" ? "valid-warn" : "hint"}>{voFollowNote}</p>}
                   </div>
                 </details>
@@ -2247,69 +2732,94 @@ export default function Studio() {
                 <p className="hint">Edit tersimpan di state dulu — klik Terapkan (Ctrl+Enter) untuk me-mount ulang preview dengan caption baru.</p>
               </div>
             )}
-            {tab === "props" && (
-              <div className="pane on" data-pane="props" role="tabpanel">
-                {(["Maskot", "Warna", "Layar & Set", "Papan skor", "Perang", "Ketik"] as const).map((g) => {
-                  const items = propsAvail.filter((p) => p.def.group === g);
-                  if (!items.length) return null;
-                  return (
-                    <details className="insp-group" open key={g}>
-                      <summary>{g} <em>{items.length}</em></summary>
-                      <div className="insp-body" style={{ padding: 4 }}>
-                        {items.map(({ def }) => {
-                          const v = draftProps[def.id];
-                          return (
-                            <Fragment key={def.id}>
-                            <label className={`prop-row${propErrById[def.id] ? " err" : ""}`}>
-                              <span>{def.label}</span>
-                              {def.kind === "color" ? (
-                                <span className="prop-color">
-                                  <input type="color" value={typeof v === "string" ? v : "#d97757"} aria-label={def.label}
-                                    onChange={(e) => setDraftProps((p) => ({ ...p, [def.id]: e.target.value }))} />
-                                  <input type="text" value={typeof v === "string" ? v : ""} aria-label={`${def.label} (hex)`}
-                                    onChange={(e) => setDraftProps((p) => ({ ...p, [def.id]: e.target.value }))} />
-                                </span>
-                              ) : def.kind === "array" ? (
-                                <span className="prop-array">
-                                  <input type="text" spellCheck={false}
-                                    value={arrayText[def.id] ?? (v !== undefined ? JSON.stringify(v) : "")}
-                                    aria-label={`${def.label} (JSON)`}
-                                    onChange={(e) => handleArrayPropChange(def, e.target.value)} />
-                                  {arrayErr[def.id] && <em className="valid-err">{arrayErr[def.id]}</em>}
-                                </span>
-                              ) : (
-                                <input type="number" min={def.min} max={def.max} step={def.step} value={typeof v === "number" ? v : 0} aria-label={def.label}
-                                  onChange={(e) => { const n = parseFloat(e.target.value); setDraftProps((p) => ({ ...p, [def.id]: Number.isNaN(n) ? 0 : n })); }} />
-                              )}
-                            </label>
-                            {propErrById[def.id]?.map((e, k) => <p key={k} className="valid-err row-err">{e}</p>)}
-                            </Fragment>
-                          );
-                        })}
+                        {tab === "objek" && (
+              <div className="pane on" data-pane="objek" role="tabpanel">
+                <div className="obj-now">
+                  {activeObj ? (
+                    <>
+                      <span className="obj-ic big" style={{ background: activeObj.color }}>{activeObj.icon}</span>
+                      <div>
+                        <b>Sedang mengedit: {activeObj.name}</b>
+                        <span>{activeObj.desc}</span>
                       </div>
-                    </details>
-                  );
-                })}
-                {propsUnavail.length > 0 && (
-                  <details className="insp-group">
-                    <summary>Tidak tersedia di template ini <em>{propsUnavail.length}</em></summary>
-                    <div className="insp-body" style={{ padding: 4 }}>
-                      {propsUnavail.map(({ def, reason }) => (
-                        <p key={def.id} className="hint"><b>{def.label}</b> — {reason}</p>
-                      ))}
-                    </div>
-                  </details>
+                    </>
+                  ) : (
+                    <p>Pilih objek di bawah, atau ketuk objek langsung di preview.</p>
+                  )}
+                </div>
+                <p className="hint">Template: {cur.label} — {objList.length} objek bisa diedit.</p>
+                <div className="obj-pick" aria-label="Pilih objek">
+                  {objList.map((o) => (
+                    <button key={o.key} type="button" aria-pressed={activeObjKey === o.key}
+                      className={`obj-pick-item${activeObjKey === o.key ? " on" : ""}${o.changed ? " changed" : ""}`}
+                      onClick={() => setSelObj(o.key)}>
+                      <span className="obj-ic" style={{ background: o.color }}>{o.icon}</span>
+                      <span>{o.name}</span>
+                      <em>{o.count} pengaturan</em>
+                    </button>
+                  ))}
+                </div>
+                {activeObj && (
+                  <div className="insp-body" style={{ padding: 4 }}>
+                    {activeObj.defs.map((def) => {
+                      const v = draftProps[def.id];
+                      const orig = origProps[def.id];
+                      const err = propErrById[def.id];
+                      const arrErr = arrayErr[def.id] ? [arrayErr[def.id]] : err;
+                      if (def.kind === "number") {
+                        if (def.control === "choice") {
+                          return <ObjChoice key={def.id} def={def} value={typeof v === "number" ? v : typeof orig === "number" ? orig : 0} err={err} onNum={(n) => setPropValue(def, n)} />;
+                        }
+                        return <ObjSlider key={def.id} def={def} file={cur.file} value={typeof v === "number" ? v : typeof orig === "number" ? orig : 0} orig={orig} err={err} onNum={(n) => setPropValue(def, n)} />;
+                      }
+                      if (def.kind === "color") {
+                        return <ObjColor key={def.id} def={def} value={typeof v === "string" ? v : typeof orig === "string" ? orig : "#d97757"} err={err} onVal={(s) => setPropValue(def, s)} />;
+                      }
+                      if (def.kind === "text") {
+                        return <ObjText key={def.id} def={def} value={typeof v === "string" ? v : typeof orig === "string" ? orig : ""} err={err} onVal={(s) => setPropValue(def, s)} />;
+                      }
+                      if (def.control === "scores" && Array.isArray(v)) {
+                        return <ObjScores key={def.id} def={def} value={v as number[]} err={arrErr} onArr={(nv) => applyArrayValue(def, nv, true)} />;
+                      }
+                      if (def.control === "curve" && Array.isArray(v)) {
+                        return <ObjCurve key={def.id} def={def} value={v as number[][]} len={len} err={arrErr} onArr={(nv) => applyArrayValue(def, nv, true)} />;
+                      }
+                      if (def.control === "windows" && Array.isArray(v)) {
+                        return <ObjWindows key={def.id} def={def} value={v as number[][]} len={len} err={arrErr} onArr={(nv) => applyArrayValue(def, nv, true)} />;
+                      }
+                      if (def.control === "spawns" && Array.isArray(v)) {
+                        return <ObjSpawns key={def.id} def={def} value={v as number[][]} len={len} err={arrErr} onArr={(nv) => applyArrayValue(def, nv, true)} />;
+                      }
+                      if (def.control === "lines" && Array.isArray(v)) {
+                        return <ObjLines key={def.id} def={def} value={v as string[]} err={arrErr} onArr={(nv) => applyArrayValue(def, nv)} />;
+                      }
+                      return (
+                        <ObjJson key={def.id} def={def}
+                          text={arrayText[def.id] ?? (v !== undefined ? JSON.stringify(v) : "")}
+                          err={arrayErr[def.id]}
+                          onText={(t) => handleArrayPropChange(def, t)} />
+                      );
+                    })}
+                  </div>
                 )}
-                {propVal.errors.map((e, k) => <p key={k} className="valid-err">{e}</p>)}
-                {propVal.warnings.map((w, k) => <p key={k} className="valid-warn">{w}</p>)}
+                {propVal.errors.map((e, k) => {
+                  const mt = /^([\w.]+):/.exec(e);
+                  const d = mt ? propsAvail.find((p) => p.def.id === mt[1])?.def : undefined;
+                  return <p key={k} className="valid-err">{d ? `${d.plain}: ${stripPropId(e)}` : stripPropId(e)}</p>;
+                })}
+                {propVal.warnings.map((w, k) => {
+                  const mt = /^([\w.]+):/.exec(w);
+                  const d = mt ? propsAvail.find((p) => p.def.id === mt[1])?.def : undefined;
+                  return <p key={k} className="valid-warn">{d ? `${d.plain}: ${stripPropId(w)}` : stripPropId(w)}</p>;
+                })}
                 <div className="insp-stick">
                 <div className="insp-actions">
-                  <button id="apply-props" className="btn primary" disabled={!ready || !anyDirty || allErrors.length > 0} title="Terapkan semua edit (Ctrl+Enter)" onClick={applyAll}>Terapkan semua edit</button>
-                  <button id="reset-props" className="btn ghost" disabled={!ready || !propsChanged} title="Kembalikan props asli" onClick={resetProps}>Kembalikan</button>
+                  <button id="apply-objek" className="btn primary" disabled={!ready || !anyDirty || allErrors.length > 0} title="Terapkan semua edit (Ctrl+Enter)" onClick={applyAll}>Terapkan semua edit</button>
+                  <button id="reset-objek" className="btn ghost" disabled={!ready || !propsChanged} title="Kembalikan pengaturan objek asli" onClick={resetProps}>Kembalikan</button>
                 </div>
                 <p className="hint apply-state" role="status">{applyStateText}</p>
                 </div>
-                <p className="hint">Props ditulis ulang sebagai nilai literal di HTML preview (pola yang sama seperti teks/caption). Jarak antar maskot dijaga &gt;0.1 dan monitor 2.4 butuh jarak pusat ≥2.6 (SKILL.md). Warna aksen juga menyinkronkan warna bubble caption (CC). Prop array (skor papan, kurva tangki, sticky notes, spawn/ketapel, jendela/baris ketik) diedit sebagai teks JSON — nilai tidak valid menampilkan error dan menahan Terapkan.</p>
+                <p className="hint">Geser slider untuk melihat perubahan langsung di preview. Tekan Terapkan untuk mengunci, lalu Simpan sebagai video baru.</p>
               </div>
             )}
           </div>
@@ -2347,11 +2857,11 @@ export default function Studio() {
             <p className="note">{expText().length > 0 ? "Teks yang kamu ubah ikut di perintah ini. Videonya tanpa audio (Web Speech tidak bisa dirender)." : "Belum ada teks yang diubah, jadi ekspor memakai teks asli template. Videonya tanpa audio."}</p>
             {hasNonTextEdits && (
               <>
-                <p className="note">Caption, shot, VO, atau props yang diedit tidak ikut perintah di atas — salin spec JSON ini sebagai <code>spec.json</code>, lalu ekspor dengan <code>node scripts/export.mjs --file {cur.file} --edit spec.json --fps {fps} --out {cur.file.replace(/\.html$/, "")}.mp4</code></p>
+                <p className="note">Caption, shot, suara, atau pengaturan objek yang diedit tidak ikut perintah di atas — salin teks di bawah ini sebagai <code>spec.json</code>, lalu ekspor dengan <code>node scripts/export.mjs --file {cur.file} --edit spec.json --fps {fps} --out {cur.file.replace(/\.html$/, "")}.mp4</code></p>
                 <div className="code">
                   <code>{specJson}</code>
                   <button className="btn small" onClick={async () => {
-                    try { await navigator.clipboard.writeText(specJson); toast("Spec JSON disalin"); }
+                    try { await navigator.clipboard.writeText(specJson); toast("Teks pengaturan disalin"); }
                     catch { toast("Teks dipilih — tekan Ctrl+C"); }
                   }}>Salin spec</button>
                 </div>
@@ -2372,7 +2882,7 @@ export default function Studio() {
                 onChange={(e) => setSaveMineLabel(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); confirmSaveMine(); } }} />
             </label>
-            <p className="note">Disimpan di seksi “Video Buatan Saya” (dari {cur.file}) beserta semua edit saat ini — teks, caption, shot, VO, dan props. Template asli tidak diubah; entri bisa dibuka, diedit lagi, dan diunduh sebagai file .html.</p>
+            <p className="note">Disimpan di seksi “Video Buatan Saya” (dari {cur.file}) beserta semua edit saat ini — teks, caption, shot, suara, dan pengaturan objek. Template asli tidak diubah; entri bisa dibuka, diedit lagi, dan diunduh sebagai file .html.</p>
             <div className="insp-actions">
               <button className="btn primary" onClick={confirmSaveMine}>Simpan video</button>
               <button className="btn ghost" onClick={() => setSaveMineOpen(false)}>Batal</button>
@@ -2400,7 +2910,7 @@ export default function Studio() {
               <dt><kbd>E</kbd></dt><dd>Ekspor MP4</dd>
               <dt><kbd>T</kbd></dt><dd>Panel Project</dd>
               <dt><kbd>R</kbd></dt><dd>Muat ulang preview</dd>
-              <dt><kbd>Ctrl/⌘</kbd>+<kbd>Enter</kbd></dt><dd>Terapkan semua edit (teks, caption, shot, VO, props)</dd>
+              <dt><kbd>Ctrl/⌘</kbd>+<kbd>Enter</kbd></dt><dd>Terapkan semua edit (teks, caption, shot, suara, pengaturan objek)</dd>
               <dt><kbd>Ctrl/⌘</kbd>+<kbd>K</kbd> atau <kbd>/</kbd></dt><dd>Palet perintah</dd>
               <dt><kbd>D</kbd></dt><dd>Ganti tema</dd>
               <dt><kbd>?</kbd></dt><dd>Dialog pintasan</dd>

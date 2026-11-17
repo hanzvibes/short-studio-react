@@ -1,0 +1,45 @@
+{
+  "results": [
+    {
+      "name": "D1b-1 bilah caption studio menampilkan teks baru (t=4)",
+      "pass": false,
+      "extra": "sebelum: Kodeku rapi. Satu fungsi, satu tugas.0:04 / 0:30 | sesudah: Kodeku rapi. Satu fungsi, satu tugas.0:04 / 0:30"
+    },
+    {
+      "name": "D1b-2 preview BERUBAH sesudah edit caption (piksel, t=4)",
+      "pass": true,
+      "extra": "2899 px (3.61%)"
+    },
+    {
+      "name": "D3a-1 dialog Simpan terbuka via drawer",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "D3b-1 entri tersimpan (jalur drawer)",
+      "pass": true,
+      "extra": "jumlah: 1"
+    },
+    {
+      "name": "D3c-1 sesudah reload entri tampil di galeri (jalur drawer)",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "D3a-2 dialog Simpan terbuka via tab Teks",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "D3b-2 entri tersimpan (jalur tab Teks)",
+      "pass": true,
+      "extra": "jumlah: 1"
+    },
+    {
+      "name": "E1b nol console/page error (bagian 4)",
+      "pass": true,
+      "extra": ""
+    }
+  ],
+  "errors": []
+}

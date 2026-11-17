@@ -193,71 +193,77 @@ baru otomatis. Perintah uji:
 → `ok`, `node --check` lolos untuk kedua blok `<script>` inline, kredit
 `@hanzvibes` tetap 2.
 
-### Matriks per template (12/12 — dari inventarisasi format nyata, bukan asumsi)
+### Matriks per template (12/12 — 251 slot, 107 id unik)
 
 `Teks` = judul/sub/end. `Caps n (arity)` = jumlah caption + arity
 (3 = tanpa speaker, 4 = dengan speaker). `VO` = `turunan` bila
 `const VO=caps.map(c=>c[2])`, `literal` bila `const VO=[...]` (jumlah baris).
+Kolom Props memakai nama objek awam dari tab Objek di Studio (ikon + nama
+di `OBJECTS`, `lib/studio.ts`); id lengkap per objek ada di
+`node scripts/apply-edit.mjs --list-props <file>`.
 
-| Template | LEN | Caps | Shots | VO | Props yang bisa diedit |
+| Template | LEN | Caps | Shots | VO | Props (jumlah + objek) |
 |---|---|---|---|---|---|
-| template.html (Versus) | 28 | 7 (4) | 9 | turunan | claude.x, codex.x, codex.scale, claude.color, codex.color, board.y, monitor.claude.x, monitor.codex.x |
-| template-trio.html | 32 | 9 (4) | 10 | turunan | 12 props: 8 di atas + gemini.x, gemini.scale, gemini.color, monitor.gemini.x |
-| template-code.html | 30 | 8 (4) | 10 | turunan | 12 props: 8 Versus + board.claude.start, board.claude.final, board.codex.start, board.codex.final (`CL0/CL1/CX0/CX1` = [KEBERSIHAN, TES LULUS, PERFORMA], 0–100) |
-| template-kuota.html | 34 | 14 (4) | 13 | literal (14) | 9 props: 8 Versus + tank.curve (`RK` keyframe [detik, %]) |
-| template-rival.html | 34 | 13 (4) | 12 | literal (13) | 9 props: 8 Versus + rival.notes (`NT`: `{f,to,a,b,o,r,tx}`) |
-| template-perang.html | 34 | 13 (4) | 15 | literal (13) | 9 props: claude.x, codex.x (via `gx`), claude.scale, codex.scale (via `gs`), claude.color, codex.color, board.y, war.spawns (`SP`), war.catapults (`EV`) — tanpa monitor (tidak pakai mkMon) |
-| template-typing.html | 26 | 6 (3) | 8 | literal (6) | 6 props: claude.color, screen.x, screen.y, mug.x, window.x, lamp.x |
-| template-deploy.html | 29 | 8 (3) | 9 | turunan | 6 props, sama seperti typing |
-| template-bughunter.html | 33 | 10 (4) | 11 | literal (10) | 8 props: 6 typing + typing.windows (`WIN`), typing.lines (`TL`) |
-| template-bomb.html | 33 | 10 (4) | 11 | literal (10) | 8 props, sama seperti bughunter |
-| template-meeting.html | 33 | 10 (4) | 10 | literal (10) | 8 props: claude.color, screen.x, screen.y, window.x, lamp.x, typing.windows, typing.lines, meeting.end (`MEET_END`) — tanpa mug |
-| template-sleep.html | 36 | 3 (4) | 10 | literal (3) | 6 props, sama seperti typing |
+| template.html (Versus) | 28 | 7 (4) | 9 | turunan | **20**: Maskot oranye (x, besar-kecil, maju-mundur, warna), Maskot biru (x, besar-kecil, maju-mundur, wajah, warna), Mata (miring), Papan skor (tinggi, awal, goyangan, akhir), Layar kecil (x oranye, x biru), Jalan cerita (debat, lelah, seri, senang) |
+| template-trio.html | 32 | 9 (4) | 10 | turunan | **24**: 20 Versus + Maskot ungu (x, besar-kecil, maju-mundur, warna) + Layar kecil (x ungu); Jalan cerita tanpa seri |
+| template-code.html | 30 | 8 (4) | 10 | turunan | **24**: Maskot oranye/biru, Mata, Papan skor (tinggi, awal/akhir oranye, awal/akhir biru), Layar kecil, Layar besar (kode, perbaikan), Jalan cerita (seri, papan masuk, refactor, bug, perbaikan) |
+| template-kuota.html | 34 | 14 (4) | 13 | literal (14) | **28**: Maskot oranye/biru, Mata, Papan skor (tinggi, baca, tulis), Layar kecil, Tangki kuota (kurva, warna penuh/habis/reset, x, z), Keyboard (x, y, z), Jalan cerita (habis, hemat, reset, kambuh) |
+| template-rival.html | 34 | 13 (4) | 12 | literal (13) | **25**: Maskot oranye/biru, Mata, Papan skor (tinggi, goyangan, atas, belakang), Layar kecil, Keyboard (x, goyangan, y, z), Catatan tempel, Jalan cerita (senang, kambuh, waspada, kerja sama) |
+| template-perang.html | 34 | 13 (4) | 15 | literal (13) | **29**: Maskot oranye/biru, Mata, Papan skor (tinggi), Pasukan kecil (waktu muncul), Katapel (daftar katapel, jarak), Benteng (jarak, dalam, besar, teks + warna bendera oranye/biru), Tombol & tagihan (tombol, tagihan, kecepatan naik), Jalan cerita (perang, damai, magang, pukulan, jeda pukulan) |
+| template-typing.html | 26 | 6 (3) | 8 | literal (6) | **14**: Maskot oranye (x, besar-kecil, maju-mundur, goyangan, warna), Mata, Layar besar (x, y, kode), Cangkir (x), Jendela (x), Lampu (x), Jalan cerita (mengetik, selesai) |
+| template-deploy.html | 29 | 8 (3) | 9 | turunan | **19**: 14 typing + Layar besar (perintah 1, perintah 2, galat, alur) ganti kode; Jalan cerita + panik & perbaikan |
+| template-bughunter.html | 33 | 10 (4) | 11 | literal (10) | **15**: Maskot oranye, Mata, Layar besar (x, y), Cangkir, Jendela, Lampu, Tulisan yang diketik (jendela, baris), Jalan cerita (alarm, hancur) |
+| template-bomb.html | 33 | 10 (4) | 11 | literal (10) | **17**: 15 bughunter + Layar besar (editor) + Bom (detik hitung mundur) |
+| template-meeting.html | 33 | 10 (4) | 10 | literal (10) | **17**: Maskot oranye, Mata, Layar besar (x, y, obrolan), Jendela, Lampu, Cangkir (baris, jarak), Tulisan yang diketik, Jalan cerita (akhir rapat, kejutan) |
+| template-sleep.html | 36 | 3 (4) | 10 | literal (3) | **19**: Maskot oranye, Mata, Layar besar (x, y, prompt, terbaru), Cangkir, Jendela, Lampu, Bos (x, besar-kecil), Jalan cerita (bangun, kerja, akhir kerja, tidur) |
 
-Nilai awal tiap prop + alasan nonaktifnya: `node scripts/apply-edit.mjs
---list-props <file>` (deterministik — baca dari file template itu sendiri).
+Nilai awal tiap prop: `node scripts/apply-edit.mjs --list-props <file>`
+(deterministik — baca dari file template itu sendiri). Total 251 slot
+(Versus 20, Trio 24, Adu Kode 24, Kuota 28, Rival 25, Perang 29, Mengetik 14,
+Deploy 19, Pemburu Bug 15, Bom 17, Rapat 17, Tidur 19); 107 id unik.
+Koreksi terhadap inventarisasi awal (`verification/props-all-inventory.md`
+mengklaim 254): Kuota sebenarnya 28, bukan 31 — `board.base`/`board.swing`/
+`board.final` tidak ada di `template-kuota.html` (papannya berasal dari
+kurva tangki + `board.read`/`board.write`).
 
-### Props yang TIDAK bisa diedit + alasannya (jangan dipalsukan)
+### Semua props bisa diedit — 0 pengecualian
 
-- **Posisi Z maskot**: hanya X yang literal (`X=`/`gx=`); Z dihitung di
-  `frame()` (`-.1*wr` dsb.), bukan nilai literal.
-- **Skala Claude** (kecuali perang via `gs[0]`): skala 1 implisit, tidak ada
-  literal `cm.scale.setScalar(...)`. Ubah ukuran relatif lewat
-  `codex.scale` / `gemini.scale`. Perang: skala efektif = `gs` karena
-  `frame()` menimpa `G[i].scale` dari `gs[i]` tiap frame — `dm.scale`
-  di perang tidak berpengaruh (jangan edit).
-- **Ekspresi maskot** (`drawFace`): tidak ada nilai literal ekspresi;
-  ekspresi mengikuti faktor cerita (`ar` marah, `jy` senang, `sh` syok,
-  `ko`, `tr` lelah) yang terikat pada beat. Mengubahnya butuh edit kode
-  `frame()`, bukan prop.
-- **Posisi X maskot tunggal** (typing/deploy/bughunter/bomb/meeting/sleep):
-  dihitung di `frame()` dari sway/turn (`const x=...`), bukan literal.
-- **Aksen bubble single-character**: `claude.color` mengubah material
-  maskot (`OR=M(0x...)`) saja; border bubble `#cap` di template tersebut
-  hardcoded `#d97757` di `<style>` dan tidak mengikuti prop. (Di template
-  multi-karakter, bubble mengikuti `CC[i]` yang disinkronkan otomatis.)
-- **Benteng perang**: posisi tersebar di banyak panggilan `box()` (tidak ada
-  satu literal "benteng") — tidak ada prop benteng.
-- **Keyboard rival**: posisi dasar `kb.position.set(0,.12,.8)` ditimpa tiap
-  frame oleh `kx` (keyboard war) — mengeditnya tidak berpengaruh.
-- **Boss sleep** (`boss.position.set(30,0,0)`): figur latar yang diparkir
-  jauh di luar frame (x=30), bukan maskot utama.
-- **Skor papan selain template-code**: template.html/trio/rival/kuota/perang
-  menghitung skor dari sinus / envelope / `REM(t)` / `EV` — tidak ada
-  literal skor; edit sumbernya (`tank.curve`, `war.spawns`, `war.catapults`)
-  bila tersedia.
-- **Warna cairan tangki kuota** (`tkLiq`): material ditimpa tiap frame dari
-  `REM(t)` (kuning → merah → hijau) — edit `tank.curve`, bukan warna.
-- **Beat cerita** (`T_BOARD`/`T_REF`/`T_BUG`/`T_FIX`/`T_TIE` di code,
-  `MEET_END` di meeting adalah pengecualian karena dipakai bersama):
-  konstanta beat dibaca bersama oleh papan, monitor, dan caps/shots —
-  mengubah satu literal saja merusak sinkron. `meeting.end` BOLEH diedit
-  karena `MEET_END` memang dipakai bersama timer + confetti + spin + layar;
-  caps/shots di sekitar nilai lama tetap harus digeser di spec yang sama.
-- **Countdown bom** (`RM(t)`, template-bomb): fungsi murni, bukan literal.
-- **Isi layar/monitor** (kode editor `CODEL`/`FIXL`, baris terminal `L`,
-  teks `drawScr`): inline di kode canvas — edit lewat caps/`typing.lines`,
-  bukan prop.
+Tidak ada lagi daftar "tidak bisa diedit". Semua 251 slot di atas bisa
+diubah lewat tab **Objek** di Studio maupun lewat spec `props` di
+`apply-edit.mjs` / `export.mjs --edit`. Cara tulisnya di `lib/studio.ts`
+dan `scripts/apply-edit.mjs` (identik, dicek `sync-check.mjs`):
+
+| Mekanisme | Cara kerja | Dipakai untuk |
+|---|---|---|
+| J1 inject-const (`const-sites`) | Sisipkan `const NAMA=nilai;` tepat sesudah tag `<script>` pembuka blok skrip utama — DI ATAS semua kode template, bukan sebelum `function frame(t){` (yang dulu membuat TDZ: kode top-level seperti `mlay()`/inisialisasi partikel memakai konstanta itu sebelum `frame()`; bila deklarasi lama masih berdiri sendiri sebelum `frame()`, ia dipindah ke atas saat ditulis ulang) — lalu ganti tiap situs yang memakai nilai itu dengan nama konstantanya | X maskot tunggal (+ goyangan), kedalaman maskot, skor papan non-code, waktu cerita/beat (multi-site), posisi layar/cangkir/jendela/lampu, detik bom |
+| J2 inject-line (`inject-call`) | Sisipkan satu baris `…scale.setScalar(1);` sesudah baris pembuat grup | Ukuran maskot (claude/codex/gemini/boss) |
+| J3 wrap-arg (`fort-field`, `num-between`) | Bungkus / ganti argumen di dalam satu panggilan | Teks + warna bendera benteng, tagihan perang + kecepatan naiknya |
+| J4 add-term (`const-sites` + `also`) | Konstanta baru + satu suku tambahan di rumus yang sudah ada | Goyangan keyboard, jarak katapel, `board.final` Trio |
+| J5 multi-site (`assign-sites`, `sitesByFile`) | Satu nilai ditulis ke SEMUA situs yang membacanya (per-file bila rumusnya beda) | Beat cerita (30 id), `board.base` Trio, `catapult.distance` (+ situs `x0` Perang) |
+| J6 css-hex (`hex` + sinkron `#cap`) | Ganti hex di `<style>` dan di material maskot; `claude.color` juga menyinkronkan garis tepi balon kata `#cap` di 5 template satu maskot | Warna aksen maskot + garis tepi balon kata |
+| J7 block (`block`, `chat`, `args-list`, `two-whole`, `str`) | Tulis ulang satu blok utuh (editor, obrolan, daftar, alur, teks perbaikan) | Isi layar (kode/perintah/chat/prompt/editor), `screen.pipeline`, `war.button` |
+
+Catatan yang bukan pengecualian (tetap bisa diedit, hanya kontrolnya
+berbeda):
+
+- **Editor teks, bukan slider** (nilainya bukan angka): `screen.editor`
+  (Bom, 4 bagian cerita), `rival.notes` (daftar catatan tempel),
+  `war.catapults` (daftar katapel), `screen.pipeline` (alur Deploy),
+  `screen.chat` (obrolan Rapat), `typing.lines` (baris ketik),
+  `war.button` (teks tombol). Di Studio: kolom teks + penjelasan awam.
+- **Wajah maskot biru** (`face.codex`): 5 tombol pilihan — Ikut cerita
+  (-1), Biasa (0), Marah (1), Senang (2), Lelah (3).
+- **Sleep tidak punya garis tepi balon kata**: `#cap` di
+  `template-sleep.html` tidak punya properti `border`, jadi sinkronisasi
+  J6 dari `claude.color` di sana no-op (bukan bug).
+- **Perilaku hitung mundur Bom yang berubah**: dulu sampai 00:01 sekitar
+  detik 23,2; rumus baru (`bomb.seconds`, J1) sampai 00:01 tepat di detik
+  bom jinak (23,4) — selisih 0,2 detik, perbaikan.
+- **Batas gabungan tetap berlaku** (validasi, lihat di bawah): di template
+  satu maskot `|claude.x| + claude.sway ≤ 1,2` (mis. typing: goyangan
+  default 0,45 → geser maksimal ±0,75); `board.base + board.swing ≤ 100`;
+  jarak benteng − katapel ≥ 1,3; `mug.row + 2×mug.gap ≤ 2,6`; urutan beat
+  antar momen harus tetap naik.
 
 ### Validasi (CLI — gagal keras = exit non-zero, tanpa output)
 
@@ -268,18 +274,25 @@ Nilai awal tiap prop + alasan nonaktifnya: `node scripts/apply-edit.mjs
 - Shots: terurut naik ketat, `0<=t0<=LEN`, `[t0,[x,y,z],[x,y,z]]`.
 - VO: panjang == jumlah caps akhir.
 - Props: id dikenal + tersedia di template itu + nilai dalam rentang
-  (`min`/`max` tiap def, warna `#rrggbb`, validator per-def: skor papan 3
-  bilangan bulat 0–100; `tank.curve` keyframe terurut, detik pertama 0,
-  persen 0–100; `rival.notes` `f` 0/1, `a<b`, `o>=b` atau 99, `tx` 1–2
-  baris ≤14 karakter; `war.spawns` 1–8 waktu per pihak; `war.catapults`
-  baris 6 angka, pihak 0/1; `typing.windows` disjoint + `typing.lines`
-  jumlah baris sama + tiap jendela ≥ huruf/27 detik).
+  (`min`/`max` tiap def — atau `rangeByFile` bila rentangnya beda per
+  template, mis. `board.swing` Rival 0..0,2 vs Versus/Trio 0..45;
+  `claude.x` tunggal −2..2 vs multi −3..3 — warna `#rrggbb`, bilangan
+  bulat untuk def step 1, validator per-def: skor papan 3 bilangan bulat
+  0–100; `tank.curve` keyframe terurut, detik pertama 0, persen 0–100;
+  `rival.notes` `f` 0/1, `a<b`, `o>=b` atau 99, `tx` 1–2 baris ≤14
+  karakter; `war.spawns` 1–8 waktu per pihak; `war.catapults` baris 6
+  angka, pihak 0/1; `typing.windows` disjoint + `typing.lines` jumlah
+  baris sama + tiap jendela ≥ huruf/27 detik; `screen.editor` diawali
+  `t<`, mengandung `[FN`, kurung seimbang).
 - Validasi silang pada HTML AKHIR (nilai gabungan spec + template):
   gap antar maskot > 0,1 DAN ≥ 2,5 (anggaran geser-ke-tengah saat
   argue/joy/typing, supaya lengan tidak clipping); framing shot 0 (lebar
   tampak = 0,975 × jarak kamera; |x| maskot + 0,6 ≤ setengah lebar tampak);
   gap antar monitor ≥ 0,2 (aturan no-coplanar); `meeting.end` sesudah
-  jendela ketik terakhir.
+  jendela ketik terakhir; urutan beat antar momen yang disentuh harus
+  tetap naik (berdasarkan `BEAT_ORDER` per template); `board.base +
+  board.swing ≤ 100`; jarak benteng − katapel ≥ 1,3; `mug.row + 2×mug.gap
+  ≤ 2,6`; template tunggal: `|claude.x| + claude.sway ≤ 1,2`.
 - Sesudah edit: `node --check` semua blok `<script>` inline; kredit
   `@hanzvibes` tidak boleh berkurang; `--out` tidak boleh di dalam
   `public/templates/` atau sama dengan input.
@@ -288,9 +301,11 @@ Nilai awal tiap prop + alasan nonaktifnya: `node scripts/apply-edit.mjs
 
 Dua worker sebelumnya menghasilkan `lib/studio.ts` (17 def) dan
 `scripts/apply-edit.mjs` (29 def) yang berbeda; rekonsiliasi menyatukan
-keduanya jadi satu kebenaran (total **29 def di kedua file**, diverifikasi
-`node scripts/sync-check.mjs`: 12/12 template byte-identik lib == mjs,
-modul + CLI + alias array). Yang diperbaiki:
+keduanya jadi satu kebenaran (total **29 def di kedua file** saat itu).
+Perluasan 2026-11-17 (tab Objek, 0 pengecualian) menaikkan total menjadi
+**107 def di kedua file** (251 slot per template, 12/12 template
+byte-identik lib == mjs, modul + CLI + alias array, diverifikasi
+`node scripts/sync-check.mjs`). Yang diperbaiki:
 
 - **Monitor trio TERTUKAR di `lib/studio.ts`**: `monitor.codex.x` menunjuk
   panggilan mkMon ke-3 (index 2 = monitor Gemini) dan `monitor.gemini.x`
@@ -544,6 +559,38 @@ Single file. Scripts only from cdnjs.cloudflare.com, cdn.jsdelivr.net/npm/, cdn.
 - [ ] Reply is short: what was built, assumptions, what was not verified, one offer for the next tweak
 
 ## Changelog
+
+- v3.17-fix: **Deklarasi konstanta sisipan (J1) pindah ke atas blok skrip**
+  — dulu disisipkan sebelum `function frame(t){`, padahal kode top-level
+  template (`mlay()`, inisialisasi partikel, pembuatan grup/keyboard)
+  memakai konstanta itu lebih dulu → TDZ mematikan 6 dari 12 template
+  saat dibuka (Kuota, Rival, Perang, Deploy, Pemburu Bug, Bom).
+  Kini `const NAMA=nilai;` disisipkan tepat sesudah tag `<script>` pembuka
+  blok skrip utama di `lib/studio.ts` == `scripts/apply-edit.mjs`
+  (dicek `sync-check.mjs` 12/12 byte-identik); deklarasi lama yang masih
+  berdiri sendiri sebelum `frame()` dipindah ke atas saat ditulis ulang.
+  Nilai default tidak berubah (terbukti probe deterministik Perang:
+  `FA`/`mlay`/posisi maskot identik asli vs semua-default). Slider array
+  (skor, kurva tangki, jendela ketik, waktu muncul pasukan) kini juga
+  memicu pratinjau langsung seperti slider angka biasa (debounce ~250 mdtk,
+  hanya bila valid); field teks array tetap tanpa pratinjau tiap ketik.
+- v3.16: **Semua props bisa diedit, 0 pengecualian** — 29 → 107 def
+  (251 slot, 107 id unik; koreksi inventarisasi: Kuota 28 bukan 31).
+  Mekanisme tulis baru J1–J7 di `lib/studio.ts` == `scripts/apply-edit.mjs`
+  (inject-const, inject-line, wrap-arg, add-term, multi-site, css-hex,
+  block; lihat matriks). Studio UI: tab **Objek** menggantikan tab Props —
+  pemilih objek (nama awam + ikon + warna), header "Sedang mengedit:
+  <nama objek>", SEMUA angka jadi slider dengan pratinjau langsung di
+  preview (debounce ~250 mdtk, hanya bila valid), ketuk objek di preview
+  untuk memilihnya (via overlay `.tap`; teruji headless 12/12 —
+  `scripts/verify-objek.mjs`), nol bahasa teknis di UI. Kontrol khusus:
+  skor papan (3 slider), kurva tangki, jendela ketik, waktu muncul pasukan
+  (slider + tambah/hapus); 7 prop tetap editor teks
+  (`screen.editor`, `rival.notes`, `war.catapults`, `screen.pipeline`,
+  `screen.chat`, `typing.lines`, `war.button`). Perilaku yang berubah:
+  hitung mundur Bom kini sampai 00:01 tepat di detik bom jinak (23,4,
+  dulu ~23,2). Verifikasi: `npm run build` hijau, `sync-check.mjs` 12/12,
+  `--list-props` 12/12, contoh spec lama exit 0.
 
 - v3.15: Short Studio React — semua 12 template full editable lewat spec edit
   kanonik (`scripts/apply-edit.mjs`: setText/setCaps/setShots/setVO/setProps

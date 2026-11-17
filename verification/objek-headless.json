@@ -1,0 +1,70 @@
+{
+  "results": [
+    {
+      "name": "A1 header Sedang mengedit Maskot oranye",
+      "pass": true,
+      "extra": "🟠Sedang mengedit: Maskot oranyeTokoh utama yang oranye — geser, besarkan, atau "
+    },
+    {
+      "name": "A2 pemilih objek typing ada 7 objek",
+      "pass": true,
+      "extra": "dapat 7"
+    },
+    {
+      "name": "A3 nilai slider tampil 0.70",
+      "pass": true,
+      "extra": "dapat 0.70"
+    },
+    {
+      "name": "A3b remount live menulis MX0=0.7 ke iframe",
+      "pass": true,
+      "extra": "{\"mx0\":true,\"hasSt\":true,\"canvas\":true}"
+    },
+    {
+      "name": "A4 preview BERUBAH sesudah slider digeser (live)",
+      "pass": true,
+      "extra": "before 10150B after 10150B"
+    },
+    {
+      "name": "A5 Terapkan mengunci (status Tidak ada perubahan)",
+      "pass": true,
+      "extra": "Tidak ada perubahan — ubah teks, caption, shot, atau pengaturan objek untuk mengaktifkan T"
+    },
+    {
+      "name": "B0 pemilih objek Versus ada 6 objek",
+      "pass": true,
+      "extra": "dapat 6"
+    },
+    {
+      "name": "B0 iframe terlihat",
+      "pass": true,
+      "extra": "{\"x\":573,\"y\":108,\"width\":226,\"height\":401}"
+    },
+    {
+      "name": "B1 ketuk kiri → Maskot oranye",
+      "pass": true,
+      "extra": "🟠Sedang mengedit: Maskot oranyeTokoh utama yang oranye — geser, besarkan, atau "
+    },
+    {
+      "name": "B2 ketuk kanan → Maskot biru",
+      "pass": true,
+      "extra": "🔵Sedang mengedit: Maskot biruTokoh kedua yang biru — geser, besarkan, atau ubah"
+    },
+    {
+      "name": "B3 ketuk atas-tengah → Papan skor",
+      "pass": true,
+      "extra": "📋Sedang mengedit: Papan skorPapan di dinding yang menunjukkan angka selama ceri"
+    },
+    {
+      "name": "C1 tanpa string teknis di panel Inspector (tab Objek)",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "C2 tanpa string teknis di seluruh halaman",
+      "pass": true,
+      "extra": ""
+    }
+  ],
+  "errors": []
+}

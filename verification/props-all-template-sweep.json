@@ -1,0 +1,116 @@
+[
+  {
+    "template": "Versus",
+    "hash": "#template",
+    "ready": true,
+    "bridge": true,
+    "ms": 1434,
+    "errors": []
+  },
+  {
+    "template": "Trio",
+    "hash": "#template-trio",
+    "ready": true,
+    "bridge": true,
+    "ms": 1705,
+    "errors": []
+  },
+  {
+    "template": "Adu Kode",
+    "hash": "#template-code",
+    "ready": true,
+    "bridge": true,
+    "ms": 1698,
+    "errors": []
+  },
+  {
+    "template": "Kuota",
+    "hash": "#template-kuota",
+    "ready": false,
+    "bridge": false,
+    "ms": 45418,
+    "errors": [
+      "pageerror: ReferenceError: Cannot access 'KB_X' before initialization",
+      "pageerror: ReferenceError: LEN is not defined"
+    ]
+  },
+  {
+    "template": "Rival",
+    "hash": "#template-rival",
+    "ready": false,
+    "bridge": false,
+    "ms": 45255,
+    "errors": [
+      "pageerror: ReferenceError: Cannot access 'KB_X' before initialization",
+      "pageerror: ReferenceError: LEN is not defined"
+    ]
+  },
+  {
+    "template": "Perang",
+    "hash": "#template-perang",
+    "ready": false,
+    "bridge": false,
+    "ms": 45422,
+    "errors": [
+      "pageerror: ReferenceError: Cannot access 'T_WAR' before initialization",
+      "pageerror: ReferenceError: vMute is not defined"
+    ]
+  },
+  {
+    "template": "Mengetik",
+    "hash": "#template-typing",
+    "ready": true,
+    "bridge": true,
+    "ms": 1312,
+    "errors": []
+  },
+  {
+    "template": "Deploy",
+    "hash": "#template-deploy",
+    "ready": false,
+    "bridge": false,
+    "ms": 45328,
+    "errors": [
+      "pageerror: ReferenceError: Cannot access 'T_DONE' before initialization",
+      "pageerror: ReferenceError: LEN is not defined"
+    ]
+  },
+  {
+    "template": "Pemburu Bug",
+    "hash": "#template-bughunter",
+    "ready": false,
+    "bridge": false,
+    "ms": 45384,
+    "errors": [
+      "pageerror: ReferenceError: Cannot access 'T_SQUASH' before initialization",
+      "pageerror: ReferenceError: LEN is not defined"
+    ]
+  },
+  {
+    "template": "Bom",
+    "hash": "#template-bomb",
+    "ready": false,
+    "bridge": false,
+    "ms": 45749,
+    "errors": [
+      "pageerror: ReferenceError: Cannot access 'T_DEFUSE' before initialization",
+      "pageerror: ReferenceError: LEN is not defined"
+    ]
+  },
+  {
+    "template": "Rapat",
+    "hash": "#template-meeting",
+    "ready": true,
+    "bridge": true,
+    "ms": 2215,
+    "errors": []
+  },
+  {
+    "template": "Tidur",
+    "hash": "#template-sleep",
+    "ready": true,
+    "bridge": true,
+    "ms": 1272,
+    "errors": []
+  }
+]

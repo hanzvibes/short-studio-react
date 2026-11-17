@@ -68,15 +68,28 @@ deterministik. File template di disk tidak pernah diubah.
 - Timeline bawah: ruler + track V1 Shots, T1 Captions (warna per pembicara),
   A1 Narasi; playhead bisa digeser, zoom/fit, snapping, hide/lock track;
   klik klip = pilih + lompat.
-- Inspector kanan: tab Teks / Shot / Caption / Props; edit judul, subjudul,
+- Inspector kanan: tab Teks / Shot / Caption / Objek; edit judul, subjudul,
   end card, semua caption (teks, mulai, selesai, pembicara), semua shot
-  (waktu + 6 angka kamera/lookAt), narasi VO, dan props scene (posisi/skala/
-  warna maskot, papan skor, monitor, layar, mug, jendela, lampu — sesuai
-  template, lihat matriks di bawah). Satu tombol Terapkan (Ctrl+Enter)
-  menerapkan semua edit sekaligus dengan me-mount ulang preview; error
-  validasi (merah) memblokir Terapkan, peringatan (kuning) tidak.
-  Edit per template tersimpan di localStorage (`ss.edits.v1`); Reset di
-  tiap tab mengembalikan ke asli.
+  (waktu + 6 angka kamera/arah pandang), narasi, dan semua pengaturan objek
+  (lihat matriks di bawah). Satu tombol Terapkan (Ctrl+Enter) menerapkan
+  semua edit sekaligus dengan me-mount ulang preview; error validasi
+  (merah) memblokir Terapkan, peringatan (kuning) tidak. Edit per template
+  tersimpan di localStorage (`ss.edits.v1`); Kembalikan di tiap tab
+  mengembalikan ke asli.
+- Tab Objek: pilih objek dari daftar (nama awam + ikon, mis. "Maskot
+  oranye", "Papan skor", "Tangki kuota") atau ketuk objek langsung di
+  preview — header selalu menunjukkan "Sedang mengedit: <nama objek>".
+  Semua angka jadi slider dengan label awam ("Geser kiri-kanan",
+  "Besar-kecil", "Tinggi", "Goyangan") dan nilai + satuan yang tampil;
+  perubahan slider langsung terlihat di preview (debounce ~250 mdtk,
+  hanya bila lolos validasi — nilai yang ditolak menampilkan alasannya di
+  bawah kontrol dan tidak mengubah preview). Warna pakai pemilih warna,
+  wajah maskot biru pakai 5 tombol pilihan, skor papan / kurva tangki /
+  jendela ketik / waktu muncul pasukan pakai slider per baris (+
+  tambah/hapus). Teks (kode layar, obrolan, editor, daftar katapel,
+  tombol) tetap kolom teks. Tidak ada istilah teknis di layar.
+  Alur: Pilih objek → Atur pakai slider → Lihat di preview → Terapkan →
+  Simpan sebagai video baru.
 - Video Buatan Saya (panel kiri, bawah daftar template): simpan edit saat
   ini sebagai video baru (dari template asal, template asli tidak pernah
   diubah). Entri tersimpan di localStorage (`ss.mine.v1`), bisa dibuka,
@@ -124,43 +137,43 @@ Format spec kanonik (dipakai Studio, `apply-edit.mjs`, `export.mjs --edit`):
 
 | Template | Teks | Caps | Shots | VO | Props yang bisa diedit |
 |---|---|---|---|---|---|
-| template.html (Versus) | ✓ | ✓ (7, speaker) | ✓ (9) | turunan caps | claude.x, codex.x, codex.scale, claude/codex.color, board.y, monitor claude/codex.x |
-| template-trio.html | ✓ | ✓ (9, speaker) | ✓ (10) | turunan caps | + gemini.x, gemini.scale, gemini.color, monitor gemini.x (12 props) |
-| template-code.html | ✓ | ✓ (8, speaker) | ✓ (10) | turunan caps | 12 props: 8 Versus + board.claude.start/final, board.codex.start/final (`CL0/CL1/CX0/CX1`) |
-| template-kuota.html | ✓ | ✓ (14, speaker) | ✓ (13) | literal (14) | 9 props: 8 Versus + tank.curve (`RK` keyframe [detik, %]) |
-| template-rival.html | ✓ | ✓ (13, speaker) | ✓ (12) | literal (13) | 9 props: 8 Versus + rival.notes (`NT`) |
-| template-perang.html | ✓ | ✓ (13, speaker) | ✓ (15) | literal (13) | claude/codex.x (via `gx`), claude.scale, codex.scale (via `gs`), claude/codex.color, board.y, war.spawns (`SP`), war.catapults (`EV`) — tanpa monitor (tidak pakai mkMon) |
-| template-typing.html | ✓ | ✓ (6, tanpa speaker) | ✓ (8) | literal (6) | claude.color, screen.x/y, mug.x, window.x, lamp.x |
-| template-deploy.html | ✓ | ✓ (8, tanpa speaker) | ✓ (9) | turunan caps | sama seperti typing |
-| template-bughunter.html | ✓ | ✓ (10, speaker) | ✓ (11) | literal (10) | 8 props: 6 typing + typing.windows (`WIN`), typing.lines (`TL`) |
-| template-bomb.html | ✓ | ✓ (10, speaker) | ✓ (11) | literal (10) | 8 props, sama seperti bughunter |
-| template-meeting.html | ✓ | ✓ (10, speaker) | ✓ (10) | literal (10) | 8 props: claude.color, screen.x/y, window.x, lamp.x, typing.windows, typing.lines, meeting.end (`MEET_END`) — tanpa mug |
-| template-sleep.html | ✓ | ✓ (3, speaker) | ✓ (10) | literal (3) | sama seperti typing |
+| template.html (Versus) | ✓ | ✓ (7, speaker) | ✓ (9) | turunan caps | **20**: Maskot oranye/biru, Mata, Papan skor, Layar kecil, Jalan cerita |
+| template-trio.html | ✓ | ✓ (9, speaker) | ✓ (10) | turunan caps | **24**: 20 Versus + Maskot ungu + Layar kecil (ungu) |
+| template-code.html | ✓ | ✓ (8, speaker) | ✓ (10) | turunan caps | **24**: Maskot oranye/biru, Mata, Papan skor (awal/akhir), Layar kecil, Layar besar (kode, perbaikan), Jalan cerita |
+| template-kuota.html | ✓ | ✓ (14, speaker) | ✓ (13) | literal (14) | **28**: Maskot oranye/biru, Mata, Papan skor (baca/tulis), Layar kecil, Tangki kuota, Keyboard, Jalan cerita |
+| template-rival.html | ✓ | ✓ (13, speaker) | ✓ (12) | literal (13) | **25**: Maskot oranye/biru, Mata, Papan skor, Layar kecil, Keyboard, Catatan tempel, Jalan cerita |
+| template-perang.html | ✓ | ✓ (13, speaker) | ✓ (15) | literal (13) | **29**: Maskot oranye/biru, Mata, Papan skor, Pasukan kecil, Katapel, Benteng, Tombol & tagihan, Jalan cerita |
+| template-typing.html | ✓ | ✓ (6, tanpa speaker) | ✓ (8) | literal (6) | **14**: Maskot oranye, Mata, Layar besar (kode), Cangkir, Jendela, Lampu, Jalan cerita |
+| template-deploy.html | ✓ | ✓ (8, tanpa speaker) | ✓ (9) | turunan caps | **19**: 14 typing + Layar besar (perintah 1/2, galat, alur) |
+| template-bughunter.html | ✓ | ✓ (10, speaker) | ✓ (11) | literal (10) | **15**: Maskot oranye, Mata, Layar besar, Cangkir, Jendela, Lampu, Tulisan yang diketik, Jalan cerita |
+| template-bomb.html | ✓ | ✓ (10, speaker) | ✓ (11) | literal (10) | **17**: 15 bughunter + Layar besar (editor) + Bom |
+| template-meeting.html | ✓ | ✓ (10, speaker) | ✓ (10) | literal (10) | **17**: Maskot oranye, Mata, Layar besar (obrolan), Jendela, Lampu, Cangkir, Tulisan yang diketik, Jalan cerita |
+| template-sleep.html | ✓ | ✓ (3, speaker) | ✓ (10) | literal (3) | **19**: Maskot oranye, Mata, Layar besar (prompt, terbaru), Cangkir, Jendela, Lampu, Bos, Jalan cerita |
 
-Batasan eksplisit (bukan bug — prop sengaja tidak dipalsukan, field
-ditampilkan nonaktif dengan alasan di UI; daftar lengkap + alasan di SKILL.md):
+Total **251 slot** (107 id unik) di 12 template — **0 pengecualian**:
+semua yang dulu tidak bisa diedit kini bisa (X maskot tunggal + goyangan,
+ukuran & kedalaman maskot, ekspresi wajah & mata, boss tidur, benteng +
+katapel + tombol + tagihan perang, skor papan non-code, tangki kuota,
+keyboard, hitung mundur bom, isi layar, waktu cerita/beat, mug rapat).
+Mekanisme tulisnya (J1–J7: inject-const, inject-line, wrap-arg, add-term,
+multi-site, css-hex, block) didokumentasikan di SKILL.md; `lib/studio.ts`
+dan `scripts/apply-edit.mjs` identik (dicek `scripts/sync-check.mjs`).
+Nilai awal tiap prop: `node scripts/apply-edit.mjs --list-props <file>`.
 
-- Posisi X maskot tunggal (typing/deploy/bughunter/bomb/meeting/sleep):
-  dihitung di `frame()` dari sway/turn, bukan nilai literal.
-- Posisi Z maskot dan ekspresi (`drawFace`): Z dihitung di `frame()`;
-  ekspresi mengikuti faktor cerita (marah/senang/syok/lelah) yang terikat
-  pada beat — bukan nilai literal.
-- Skala Claude (kecuali perang via `gs[0]`): skala 1 implisit, tidak ada
-  literalnya. Di perang, skala efektif = `gs` (frame menimpa `G[i].scale`
-  tiap frame) — `dm.scale.setScalar` di sana tidak berpengaruh.
-- Boss sleep (`boss.position.set(30,0,0)`): figur latar yang diparkir jauh
-  di luar frame (x=30), bukan maskot utama — tidak diekspos sebagai prop.
-- Benteng perang dan keyboard rival: benteng tersebar di banyak panggilan
-  `box()`; posisi dasar keyboard ditimpa tiap frame oleh `kx`.
-- Skor papan selain template-code (sinus / envelope / `REM(t)` / `EV`) dan
-  warna cairan tangki kuota (ditimpa tiap frame dari `REM(t)`) dihitung,
-  bukan literal — edit sumbernya (`tank.curve`, `war.spawns`,
-  `war.catapults`). Skor papan code (`CL0/CL1/CX0/CX1`) dan kurva tangki
-  (`RK`) ADALAH literal dan bisa diedit (lihat matriks).
-- Beat cerita (`T_BOARD`/`T_REF`/`T_BUG`/`T_FIX`/`T_TIE` di code): konstanta
-  bersama papan + monitor + caps/shots — mengubah satu literal saja merusak
-  sinkron. `MEET_END` (meeting) adalah pengecualian karena memang dipakai
-  bersama timer + confetti + spin + layar.
+Catatan:
+
+- 7 prop tetap editor teks (bukan slider, karena nilainya bukan angka):
+  `screen.editor` (Bom), `rival.notes`, `war.catapults`,
+  `screen.pipeline` (Deploy), `screen.chat` (Rapat), `typing.lines`,
+  `war.button` (Perang).
+- Warna aksen maskot juga menyinkronkan garis tepi balon kata di 5
+  template satu maskot — kecuali Sleep yang memang tidak punya garis tepi
+  balon kata.
+- Hitung mundur Bom kini sampai 00:01 tepat di detik bom jinak (23,4;
+  dulu ~23,2).
+- Batas gabungan tetap dijaga validasi: template satu maskot
+  `|geser| + goyangan ≤ 1,2`; skor awal + goyangan papan ≤ 100; jarak
+  benteng − katapel ≥ 1,3; urutan momen cerita harus tetap naik.
 - `template-sleep` shots mengandung komentar `//` di dalam array —
   parser mengabaikannya (bracket-matching sadar komentar).
 - VO 4 template turunan (`template.html`, `template-code.html`,

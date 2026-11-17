@@ -88,15 +88,18 @@ for (const t of registry) {
     const def = p.def;
     const v = deep(p.value);
     if (def.kind === 'number') {
-      if (['claude.x', 'codex.x', 'gemini.x'].includes(def.id) || def.id.startsWith('monitor.')) {
+      if (['claude.x', 'codex.x', 'gemini.x', 'fort.distance', 'catapult.distance'].includes(def.id) || def.id.startsWith('monitor.')) {
         props[def.id] = v; // posisi maskot/monitor: round-trip (hindari risiko gap/framing)
       } else if (def.id === 'meeting.end') {
         props[def.id] = Math.round((v + 0.1) * 1000) / 1000;
       } else {
-        const step = def.step || 0.05;
+        // Rentang bisa berbeda per template (rangeByFile) — pakai rentang
+        // file ini supaya nilai hasil naik tetap valid.
+        const r = (def.rangeByFile && def.rangeByFile[file]) || def;
+        const step = r.step || 0.05;
         let nv = Math.round((v + step) * 1000) / 1000;
-        if (def.max !== undefined) nv = Math.min(nv, def.max);
-        if (def.min !== undefined) nv = Math.max(nv, def.min);
+        if (r.max !== undefined) nv = Math.min(nv, r.max);
+        if (r.min !== undefined) nv = Math.max(nv, r.min);
         props[def.id] = nv;
       }
     } else if (def.kind === 'color') {
@@ -120,6 +123,8 @@ for (const t of registry) {
         v[0][0] = '$ echo tes sinkron';
       }
       props[def.id] = v;
+    } else if (def.kind === 'text') {
+      props[def.id] = v; // teks: round-trip (nilai asli ditulis kembali)
     }
   }
   spec.props = props;

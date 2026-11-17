@@ -1,0 +1,50 @@
+{
+  "results": [
+    {
+      "name": "P1 ketuk kanan 390 memilih Maskot biru bila stage terlihat penuh",
+      "pass": true,
+      "extra": "🔵Sedang mengedit: Maskot biruTokoh kedua yang biru — geser,"
+    },
+    {
+      "name": "P2 tema 390 bisa diganti via tombol D (themeBtn display:none by design)",
+      "pass": true,
+      "extra": "dark → light"
+    },
+    {
+      "name": "P3 benteng 1.3 vs asli BERUBAH (piksel, t=15, page shot)",
+      "pass": true,
+      "extra": "75359 px (14.54%)"
+    },
+    {
+      "name": "P4 tangki 30 vs 92 BERUBAH (piksel, t=6, page shot)",
+      "pass": true,
+      "extra": "156309 px (30.15%)"
+    }
+  ],
+  "geo": {
+    "scrollY": 0,
+    "innerH": 844,
+    "docH": 844,
+    "stage": {
+      "x": 89,
+      "y": -243.25,
+      "w": 212,
+      "h": 378
+    },
+    "tap": {
+      "x": 89,
+      "y": -243.25,
+      "w": 212,
+      "h": 378,
+      "display": "grid"
+    },
+    "themeBtnVisible": false
+  },
+  "geo2": {
+    "x": 89,
+    "y": 92.75,
+    "w": 212,
+    "h": 378,
+    "scrollY": 0
+  }
+}

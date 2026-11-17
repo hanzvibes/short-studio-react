@@ -1,0 +1,98 @@
+[
+  {
+    "template": "Versus",
+    "hash": "#template",
+    "ready": true,
+    "bridge": true,
+    "ms": 1391,
+    "errors": []
+  },
+  {
+    "template": "Trio",
+    "hash": "#template-trio",
+    "ready": true,
+    "bridge": true,
+    "ms": 1274,
+    "errors": []
+  },
+  {
+    "template": "Adu Kode",
+    "hash": "#template-code",
+    "ready": true,
+    "bridge": true,
+    "ms": 1772,
+    "errors": []
+  },
+  {
+    "template": "Kuota",
+    "hash": "#template-kuota",
+    "ready": true,
+    "bridge": true,
+    "ms": 1547,
+    "errors": []
+  },
+  {
+    "template": "Rival",
+    "hash": "#template-rival",
+    "ready": true,
+    "bridge": true,
+    "ms": 1437,
+    "errors": []
+  },
+  {
+    "template": "Perang",
+    "hash": "#template-perang",
+    "ready": true,
+    "bridge": true,
+    "ms": 1517,
+    "errors": []
+  },
+  {
+    "template": "Mengetik",
+    "hash": "#template-typing",
+    "ready": true,
+    "bridge": true,
+    "ms": 1431,
+    "errors": []
+  },
+  {
+    "template": "Deploy",
+    "hash": "#template-deploy",
+    "ready": true,
+    "bridge": true,
+    "ms": 1337,
+    "errors": []
+  },
+  {
+    "template": "Pemburu Bug",
+    "hash": "#template-bughunter",
+    "ready": true,
+    "bridge": true,
+    "ms": 1348,
+    "errors": []
+  },
+  {
+    "template": "Bom",
+    "hash": "#template-bomb",
+    "ready": true,
+    "bridge": true,
+    "ms": 1488,
+    "errors": []
+  },
+  {
+    "template": "Rapat",
+    "hash": "#template-meeting",
+    "ready": true,
+    "bridge": true,
+    "ms": 2405,
+    "errors": []
+  },
+  {
+    "template": "Tidur",
+    "hash": "#template-sleep",
+    "ready": true,
+    "bridge": true,
+    "ms": 2445,
+    "errors": []
+  }
+]
