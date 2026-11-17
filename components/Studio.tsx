@@ -106,22 +106,17 @@ export default function Studio() {
   const [fields, setFields] = useState<TextFields>({ title: "", sub: "", end: "" });
   const [applied, setApplied] = useState<TextFields>({ title: "", sub: "", end: "" });
   const [edits, setEdits] = useState<Record<string, TextFields>>({});
-  const [fullEdits, setFullEdits] = useState<Record<string, FullEdit>>(() => {
-    try {
-      const fe = JSON.parse(localStorage.getItem(EDITS_KEY) || "{}");
-      return fe && typeof fe === "object" ? fe : {};
-    } catch {
-      return {};
-    }
-  });
-  const [mine, setMine] = useState<MyVideo[]>(() => {
-    try {
-      const mn = JSON.parse(localStorage.getItem(MINE_KEY) || "[]");
-      return Array.isArray(mn) ? mn : [];
-    } catch {
-      return [];
-    }
-  });
+  // Hydration: JANGAN baca localStorage di initializer. Server selalu
+  // me-render [] / {} (localStorage tidak ada saat SSR); bila klien
+  // menginisialisasi dari simpanan, HTML awal berbeda -> React #418
+  // pada setiap load bagi pengguna yang pernah menyimpan video/edit.
+  // Nilai awal kosong (identik dengan server), simpanan dimuat lewat
+  // efek mount di bawah (lihat "restore simpanan") dan init template
+  // baru jalan sesudah restored=true, supaya load() pertama sudah
+  // melihat fullEdits yang dipulihkan.
+  const [fullEdits, setFullEdits] = useState<Record<string, FullEdit>>({});
+  const [mine, setMine] = useState<MyVideo[]>([]);
+  const [restored, setRestored] = useState(false);
   const [activeMineId, setActiveMineId] = useState<string | null>(null);
   const [saveMineOpen, setSaveMineOpen] = useState(false);
   const [saveMineLabel, setSaveMineLabel] = useState("");
@@ -592,8 +587,27 @@ export default function Studio() {
     [cur, base, hasChanges, normalize, fields, load, saveCurrentFullEdit]
   );
 
-  // init sekali: hash / last template, tema, zoom
+  // Restore simpanan (mount saja, sesudah hidrasi): baca ss.edits.v1 +
+  // ss.mine.v1 dari localStorage, lalu tandai restored agar init di bawah
+  // jalan dengan fullEdits yang sudah dipulihkan. Tanpa gate restored,
+  // load() pertama akan memakai fullEdits={} dan edit tersimpan tidak
+  // diterapkan ke template pertama.
   useEffect(() => {
+    try {
+      const fe = JSON.parse(localStorage.getItem(EDITS_KEY) || "{}");
+      if (fe && typeof fe === "object") setFullEdits(fe);
+    } catch { /* simpanan rusak -> pakai {} */ }
+    try {
+      const mn = JSON.parse(localStorage.getItem(MINE_KEY) || "[]");
+      if (Array.isArray(mn)) setMine(mn);
+    } catch { /* simpanan rusak -> pakai [] */ }
+    setRestored(true);
+  }, []);
+
+  // init sekali: hash / last template, tema, zoom — jalan sesudah restore
+  // (lihat atas) supaya load(first) melihat edit tersimpan.
+  useEffect(() => {
+    if (!restored) return;
     try {
       const savedTheme = localStorage.getItem("ss.theme");
       if (savedTheme === "light" || savedTheme === "dark") setTheme(savedTheme, true);
@@ -610,17 +624,17 @@ export default function Studio() {
     setCur(first);
     load(first);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [restored]);
 
-  // Persistensi edit per-template (ss.edits.v1) — kunci baru, tidak
-  // menimpa ss.drawer / ss.theme / ss.last yang sudah ada. Nilai awal
-  // dibaca lazy dari localStorage (lihat useState di atas), jadi efek ini
-  // tidak pernah menimpa simpanan lama dengan {}.
+  // Persistensi edit per-template (ss.edits.v1). Gate restored: tanpa ini
+  // efek mount pertama akan menimpa simpanan lama dengan {} (nilai awal
+  // kosong pasca-perbaikan hidrasi) sebelum restore sempat membacanya.
   useEffect(() => {
+    if (!restored) return;
     try {
       localStorage.setItem(EDITS_KEY, JSON.stringify(fullEdits));
     } catch { /* private mode */ }
-  }, [fullEdits]);
+  }, [fullEdits, restored]);
 
   // ---------- validasi draft (error = blokir Terapkan, warning = kuning) ----------
   const capsChanged = useMemo(
