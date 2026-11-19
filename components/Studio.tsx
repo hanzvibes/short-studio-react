@@ -410,6 +410,7 @@ function ObjCurve({ def, value, len, orig, err, onArr, onRestore }: {
         );
       })}
       <button className="btn ghost small" disabled={!canAdd} onClick={() => { if (last) onArr([...value, [Math.round((last[0] + 1) * 10) / 10, last[1]]]); }}>+ Tambah baris</button>
+      {!canAdd && <em className="prop-hint">Baris terakhir sudah di ujung video ({last ? last[0].toFixed(1) : "?"} dtk dari {len} dtk) — hapus baris terakhir dulu untuk menambah baris baru.</em>}
       {def.hint && <em className="prop-hint">{def.hint}</em>}
       {err?.map((e, k) => <p key={k} className="valid-err row-err">{stripPropId(e)}</p>)}
     </div>
@@ -461,6 +462,7 @@ function ObjWindows({ def, value, len, err, minDur, orig, onArr, onRestore }: {
         );
       })}
       <button className="btn ghost small" disabled={!canAdd} onClick={() => { if (last) onArr([...value, [Math.round((last[1] + 0.1) * 10) / 10, Math.min(len, Math.round((last[1] + 1) * 10) / 10)]]); }}>+ Tambah baris</button>
+      {!canAdd && <em className="prop-hint">Jendela terakhir berakhir di {last ? last[1].toFixed(1) : "?"} dtk dari {len} dtk — hapus baris terakhir dulu untuk menambah baris baru.</em>}
       {def.hint && <em className="prop-hint">{def.hint}</em>}
       {err?.map((e, k) => <p key={k} className="valid-err row-err">{stripPropId(e)}</p>)}
     </div>
@@ -673,6 +675,7 @@ function ObjChat({ def, value, len, orig, err, onArr, onRestore }: {
         </div>
       ))}
       <button className="btn ghost small" disabled={!canAdd} onClick={() => onArr([...value, [Math.round((lastT + 1) * 10) / 10, "Nama", "Pesan baru", "ORG"] as [number, string, string, string]])}>+ Tambah baris</button>
+      {!canAdd && <em className="prop-hint">Baris terakhir sudah di ujung video ({lastT.toFixed(1)} dtk dari {len} dtk) — hapus baris terakhir dulu untuk menambah baris baru.</em>}
       {def.hint && <em className="prop-hint">{def.hint}</em>}
       {err?.map((e, k) => <p key={k} className="valid-err row-err">{stripPropId(e)}</p>)}
     </div>
@@ -734,6 +737,7 @@ function ObjCatapults({ def, value, len, orig, err, onArr, onRestore }: {
         </div>
       ))}
       <button className="btn ghost small" disabled={!canAdd} onClick={() => onArr([...value, [0, Math.round((lastT + 0.5) * 10) / 10, 0.9, 0, 1, 0]])}>+ Tambah tembakan</button>
+      {!canAdd && <em className="prop-hint">Tembakan terakhir sudah di ujung video ({lastT.toFixed(1)} dtk dari {len} dtk) — hapus tembakan terakhir dulu untuk menambah tembakan baru.</em>}
       {def.hint && <em className="prop-hint">{def.hint}</em>}
       {err?.map((e, k) => <p key={k} className="valid-err row-err">{stripPropId(e)}</p>)}
     </div>
@@ -979,6 +983,9 @@ export default function Studio() {
   /** Lipatan timeline manual: null = ikut sheet (terlipat saat sheet
    *  terbuka), true = dibuka manual oleh pengguna. */
   const [tlManual, setTlManual] = useState<boolean | null>(null);
+  /** M20/V1366-12: snap sheet sebelum masuk fokus — dipakai mengembalikan
+   *  lipatan timeline saat keluar fokus (lihat efek di bawah). */
+  const focusPrevSnapRef = useRef<SheetSnap | null>(null);
   const [sheetKbOpen, setSheetKbOpen] = useState(false);
   const sheetRef = useRef<HTMLElement | null>(null);
   const dragRef = useRef<{ startY: number; startTranslate: number; lastY: number; lastT: number; vy: number; moved: boolean; pointerId: number } | null>(null);
@@ -1324,6 +1331,18 @@ export default function Studio() {
       return () => clearTimeout(t);
     }
   }, [sheetMode, fitStage]);
+
+  // M20/V1366-12: keluar fokus mengembalikan lipatan timeline — sheet yang
+  // ditutup saat masuk fokus dibuka lagi ke snap semula, supaya timeline
+  // yang tadinya terlipat jadi strip tidak tiba-tiba terbuka penuh.
+  // (Simpan snap-nya di onClick tombol fokus — di efek sudah terlambat,
+  // karena closeSheet() lebih dulu mengubah sheetSnapRef jadi "closed".)
+  useEffect(() => {
+    if (focusView) return;
+    const s = focusPrevSnapRef.current;
+    focusPrevSnapRef.current = null;
+    if (s && s !== "closed") setSheetSnap(s);
+  }, [focusView]);
 
   // Snap berubah: bersihkan transform inline (kelas CSS yang mengambil
   // alih), fitStage sesudah transisi .28s, toast lipatan sekali.
@@ -1748,16 +1767,23 @@ export default function Studio() {
   // jalan dengan fullEdits yang sudah dipulihkan. Tanpa gate restored,
   // load() pertama akan memakai fullEdits={} dan edit tersimpan tidak
   // diterapkan ke template pertama.
+  // M20/H5: simpanan rusak jangan ditelan diam-diam (G5: toast error awam).
+  // Kunci yang rusak dihapus supaya pesannya tidak muncul di tiap reload —
+  // isinya memang sudah tidak bisa dibaca lagi.
   useEffect(() => {
+    let bad = false;
     try {
       const fe = JSON.parse(localStorage.getItem(EDITS_KEY) || "{}");
       if (fe && typeof fe === "object") setFullEdits(fe);
-    } catch { /* simpanan rusak -> pakai {} */ }
+      else { bad = true; try { localStorage.removeItem(EDITS_KEY); } catch { /* ignore */ } }
+    } catch { bad = true; try { localStorage.removeItem(EDITS_KEY); } catch { /* ignore */ } }
     try {
       const mn = JSON.parse(localStorage.getItem(MINE_KEY) || "[]");
       if (Array.isArray(mn)) setMine(mn);
-    } catch { /* simpanan rusak -> pakai [] */ }
+      else { bad = true; try { localStorage.removeItem(MINE_KEY); } catch { /* ignore */ } }
+    } catch { bad = true; try { localStorage.removeItem(MINE_KEY); } catch { /* ignore */ } }
     setRestored(true);
+    if (bad) setTimeout(() => toast("Simpanan lama rusak dan tidak bisa dibaca — mulai dari tampilan asli.", true), 0);
   }, []);
 
   // init sekali: hash / last template, tema, zoom — jalan sesudah restore
@@ -1871,7 +1897,7 @@ export default function Studio() {
   );
   const propVal = useMemo(() => {
     const v = validateProps(draftProps, cur.file, len);
-    // Cek silang WIN/TL + meeting.end (cermin crossCheckFinal di .mjs):
+    // Cek silang ketikan + waktu rapat selesai (cermin crossCheckFinal di .mjs):
     // validateProps() sendiri tidak melakukannya, seperti di .mjs.
     const cc = crossCheckProps(draftProps, len);
     return { errors: [...v.errors, ...cc.errors], warnings: [...v.warnings, ...cc.warnings] };
@@ -1999,6 +2025,31 @@ export default function Studio() {
     () => dirty || capsPending || shotsPending || propsPending || voPending,
     [dirty, capsPending, shotsPending, propsPending, voPending]
   );
+  /** M20: "ada perubahan" vs ASLI (bukan vs sudah-diterapkan) — dipakai
+   *  tombol Simpan: sesudah Terapkan pun edit masih belum tersimpan sebagai
+   *  video, jadi Simpan tetap aktif; baru sesudah Kembalikan ia nonaktif. */
+  const hasAnyEdit = useMemo(
+    () => edited || capsChanged || shotsChanged || propsChanged || voTouched,
+    [edited, capsChanged, shotsChanged, propsChanged, voTouched]
+  );
+  /** M20/L3: klik tombol nonaktif tanpa umpan balik — tombol disabled tidak
+   *  memicu onClick, tapi pointerdown SAMPAI ke tombol + induknya (diukur
+   *  headless: btn:pointerdown + parent:pointerdown). Tangkap di <aside>
+   *  inspector dan beri tahu kenapa nonaktif. */
+  const onDisabledPointerDown = useCallback((e: React.PointerEvent) => {
+    const btn = (e.target as HTMLElement).closest?.("button:disabled") as HTMLButtonElement | null;
+    if (!btn) return;
+    const id = btn.id;
+    if (id === "apply" || id === "apply-shot" || id === "apply-cap" || id === "apply-objek" || btn.classList.contains("sheet-apply")) {
+      toast(!ready ? "Preview belum siap — tunggu sebentar" : allErrors.length > 0 ? `Masih ada ${allErrors.length} error validasi — perbaiki dulu` : "Tidak ada perubahan untuk diterapkan");
+    } else if (id === "reset" || id === "reset-shot" || id === "reset-cap" || id === "reset-objek") {
+      toast("Belum ada perubahan — tidak ada yang dikembalikan");
+    } else if (id === "save-teks" || id === "save-shot" || id === "save-cap" || id === "save-objek" || id === "save-drawer") {
+      toast("Belum ada perubahan — edit dulu, baru simpan");
+    } else {
+      toast("Tombol ini sedang nonaktif");
+    }
+  }, [ready, allErrors.length, toast]);
 
   /** Kelompok perubahan untuk baris status tombol Terapkan: tombol itu
    *  sengaja disabled bila tidak ada edit (by-design, bukan bug) — tapi
@@ -2217,8 +2268,8 @@ export default function Studio() {
   }, [origProps, mount, toast, propsAvail, saveCurrentFullEdit]);
 
   /** Terapkan nilai baru untuk satu prop array (sudah ter-parse).
-   *  Nilai yang lolos validasi (validator per-def + cek silang WIN/TL /
-   *  meeting.end) masuk draftProps; yang tidak lolos hanya menampilkan
+   *  Nilai yang lolos validasi (validator per-def + cek silang ketikan /
+   *  waktu rapat selesai) masuk draftProps; yang tidak lolos hanya menampilkan
    *  error dan menahan Terapkan (arrayErr masuk allErrors) — draftProps
    *  tidak diubah. Dipakai kontrol slider/daftar maupun field teks.
    *  `live=true` (slider/daftar saja, bukan field teks) juga memicu
@@ -3236,12 +3287,12 @@ export default function Studio() {
               </button>
             ))}
           </div>
-          <div className="mine-sec">
+          {restored && (<div className="mine-sec">
             <div className="mine-h">
               <span>Video Buatan Saya</span>
               <span className="badge">{mine.length}</span>
               <span className="grow" />
-              <button className="btn ghost small" title={activeMineEntry ? `Perbarui "${activeMineEntry.label}" di Video Buatan Saya` : "Simpan video saat ini sebagai video baru"} onClick={() => { setSaveMineLabel(activeMineEntry ? activeMineEntry.label : (fields.title.trim() || cur.label)); setSaveMineOpen(true); }}>{activeMineEntry ? "Perbarui" : "+ Simpan"}</button>
+              <button id="save-drawer" className="btn ghost small" disabled={!ready || !hasAnyEdit} title={!hasAnyEdit ? "Belum ada perubahan — edit dulu, baru simpan" : activeMineEntry ? `Perbarui "${activeMineEntry.label}" di Video Buatan Saya` : "Simpan video saat ini sebagai video baru"} onClick={() => { setSaveMineLabel(activeMineEntry ? activeMineEntry.label : (fields.title.trim() || cur.label)); setSaveMineOpen(true); }}>{activeMineEntry ? "Perbarui" : "+ Simpan"}</button>
             </div>
             {mine.length === 0 ? (
               <p className="hint" style={{ padding: "6px 9px" }}>Belum ada. Edit template apa pun lalu simpan sebagai video baru — template asli tidak pernah diubah.</p>
@@ -3250,7 +3301,7 @@ export default function Studio() {
                 {mine.map((m) => (
                   <div key={m.id} className={`mine-item${activeMineId === m.id ? " on" : ""}`}>
                     <button className="mine-open" onClick={() => openMine(m)} title={`Buka ${m.label} (dari ${m.file})`}>
-                      <b>{m.label}</b>
+                      <b title={m.label}>{m.label}</b>
                       <small>dari {m.file.replace(/^template-?/, "").replace(/\.html$/, "") || "versus"} · {new Date(m.updatedAt ?? m.createdAt).toLocaleDateString("id-ID", { day: "numeric", month: "short" })}{m.updatedAt ? " (diperbarui)" : ""}</small>
                     </button>
                     <button className="btn ghost small" title="Unduh sebagai file .html" onClick={() => downloadMine(m)}>Unduh .html</button>
@@ -3259,7 +3310,7 @@ export default function Studio() {
                 ))}
               </div>
             )}
-          </div>
+          </div>)}
           <div className="panel-foot"><b>12 short siap edit.</b><br />Pilih template, scrub di timeline, ubah teks, ekspor.</div>
         </aside>
         <div className="scrim" onClick={() => setDrawerOpen(false)} />
@@ -3274,7 +3325,7 @@ export default function Studio() {
               </span>
             )}
             <span className="grow" />
-            <button className="ph-icon" aria-pressed={focusView} aria-label={focusView ? "Keluar dari fokus viewer" : "Fokus viewer — sembunyikan timeline dan transport"} title={focusView ? "Keluar dari fokus viewer (Esc)" : "Fokus viewer — sembunyikan timeline & transport"} onClick={() => { if (!focusView) closeSheet(); setFocusView((v) => !v); toast(!focusView ? "Fokus viewer — timeline disembunyikan" : "Fokus viewer nonaktif"); }}>
+            <button className="ph-icon" aria-pressed={focusView} aria-label={focusView ? "Keluar dari fokus viewer" : "Fokus viewer — sembunyikan timeline dan transport"} title={focusView ? "Keluar dari fokus viewer (Esc)" : "Fokus viewer — sembunyikan timeline & transport"} onClick={() => { if (!focusView) { focusPrevSnapRef.current = sheetSnapRef.current; closeSheet(); } setFocusView((v) => !v); toast(!focusView ? "Fokus viewer — timeline disembunyikan" : "Fokus viewer nonaktif"); }}>
               <svg viewBox="0 0 24 24"><path d="M3 5h6v2H5v4H3zm18 0h-6v2h4v4h2zm-18 14h6v-2H5v-4H3zm18 0h-6v-2h4v-4h2z" /></svg>
             </button>
             <button className="ph-icon" aria-pressed={guides} aria-label="Garis bantu" title="Garis bantu (G)" onClick={() => { setGuides((v) => !v); toast(!guides ? "Garis bantu aktif" : "Garis bantu nonaktif"); }}>
@@ -3451,7 +3502,7 @@ export default function Studio() {
                     {ruler.items.map((tk, i) => (
                       <span key={i}>
                         <i className={`tick${tk.major ? " maj" : ""}`} style={{ left: pct(tk.t) + "%" }} />
-                        {tk.major && <span className="tick-lbl" style={{ left: pct(tk.t) + "%" }}>{ruler.label(tk.t)}</span>}
+                        {tk.major && <span className="tick-lbl" style={{ left: pct(tk.t) + "%", transform: tk.t <= 0 ? "translateX(12px)" : pct(tk.t) >= 99.5 ? "translateX(calc(-100% - 3px))" : undefined }}>{ruler.label(tk.t)}</span>}
                       </span>
                     ))}
                   </div>
@@ -3540,6 +3591,7 @@ export default function Studio() {
         </section>
 
         <aside ref={sheetRef} className={`panel inspector${sheetMode ? ` sheet-${sheetSnap}` : ""}`} aria-label="Inspector"
+          onPointerDown={onDisabledPointerDown}
           onPointerMove={onSheetPointerMove} onPointerUp={onSheetPointerUp} onPointerCancel={onSheetPointerCancel}
           onFocusCapture={onSheetFocusCapture}>
           {sheetMode && (
@@ -3626,7 +3678,7 @@ export default function Studio() {
                     </button>
                   </div>
                   <div className="insp-actions">
-                    <button className="btn ghost" disabled={!ready} title={activeMineEntry ? "Perbarui video ini di Video Buatan Saya (template asli tidak diubah)" : "Simpan edit saat ini sebagai video baru (template asli tidak diubah)"} onClick={() => { setSaveMineLabel(activeMineEntry ? activeMineEntry.label : (fields.title.trim() || cur.label)); setSaveMineOpen(true); }}>
+                    <button id="save-teks" className="btn ghost" disabled={!ready || !hasAnyEdit} title={!hasAnyEdit ? "Belum ada perubahan — edit dulu, baru simpan" : activeMineEntry ? "Perbarui video ini di Video Buatan Saya (template asli tidak diubah)" : "Simpan edit saat ini sebagai video baru (template asli tidak diubah)"} onClick={() => { setSaveMineLabel(activeMineEntry ? activeMineEntry.label : (fields.title.trim() || cur.label)); setSaveMineOpen(true); }}>
                       <svg viewBox="0 0 24 24"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z" /></svg>
                       {activeMineEntry ? "Perbarui video ini" : "Simpan sebagai video baru"}
                     </button>
@@ -3718,6 +3770,12 @@ export default function Studio() {
                   <button id="apply-shot" className="btn primary" disabled={!ready || !anyDirty || allErrors.length > 0} title="Terapkan semua edit (Ctrl+Enter)" onClick={applyAll}>Terapkan semua edit</button>
                   <button id="reset-shot" className="btn ghost" disabled={!ready || !shotsChanged} title="Kembalikan shot asli" onClick={resetShots}>Kembalikan</button>
                 </div>
+                <div className="insp-actions">
+                  <button id="save-shot" className="btn ghost" disabled={!ready || !hasAnyEdit} title={!hasAnyEdit ? "Belum ada perubahan — edit dulu, baru simpan" : activeMineEntry ? "Perbarui video ini di Video Buatan Saya (template asli tidak diubah)" : "Simpan edit saat ini sebagai video baru (template asli tidak diubah)"} onClick={() => { setSaveMineLabel(activeMineEntry ? activeMineEntry.label : (fields.title.trim() || cur.label)); setSaveMineOpen(true); }}>
+                      <svg viewBox="0 0 24 24"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c1.1.89 2 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z" /></svg>
+                      {activeMineEntry ? "Perbarui video ini" : "Simpan sebagai video baru"}
+                    </button>
+                </div>
                 <p className="hint apply-state" role="status">{applyStateText}</p>
                 </div>
                 <p className="hint">Edit tersimpan di state dulu — klik Terapkan (Ctrl+Enter) untuk me-mount ulang preview dengan shot baru.</p>
@@ -3808,6 +3866,12 @@ export default function Studio() {
                 <div className="insp-actions">
                   <button id="apply-cap" className="btn primary" disabled={!ready || !anyDirty || allErrors.length > 0} title="Terapkan semua edit (Ctrl+Enter)" onClick={applyAll}>Terapkan semua edit</button>
                   <button id="reset-cap" className="btn ghost" disabled={!ready || (!capsChanged && !voTouched)} title="Kembalikan caption asli" onClick={resetCaps}>Kembalikan</button>
+                </div>
+                <div className="insp-actions">
+                  <button id="save-cap" className="btn ghost" disabled={!ready || !hasAnyEdit} title={!hasAnyEdit ? "Belum ada perubahan — edit dulu, baru simpan" : activeMineEntry ? "Perbarui video ini di Video Buatan Saya (template asli tidak diubah)" : "Simpan edit saat ini sebagai video baru (template asli tidak diubah)"} onClick={() => { setSaveMineLabel(activeMineEntry ? activeMineEntry.label : (fields.title.trim() || cur.label)); setSaveMineOpen(true); }}>
+                      <svg viewBox="0 0 24 24"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c1.1.89 2 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z" /></svg>
+                      {activeMineEntry ? "Perbarui video ini" : "Simpan sebagai video baru"}
+                    </button>
                 </div>
                 <p className="hint apply-state" role="status">{applyStateText}</p>
                 </div>
@@ -3915,6 +3979,12 @@ export default function Studio() {
                 <div className="insp-actions">
                   <button id="apply-objek" className="btn primary" disabled={!ready || !anyDirty || allErrors.length > 0} title="Terapkan semua edit (Ctrl+Enter)" onClick={applyAll}>Terapkan semua edit</button>
                   <button id="reset-objek" className="btn ghost" disabled={!ready || !propsChanged} title="Kembalikan pengaturan objek asli" onClick={resetProps}>Kembalikan</button>
+                </div>
+                <div className="insp-actions">
+                  <button id="save-objek" className="btn ghost" disabled={!ready || !hasAnyEdit} title={!hasAnyEdit ? "Belum ada perubahan — edit dulu, baru simpan" : activeMineEntry ? "Perbarui video ini di Video Buatan Saya (template asli tidak diubah)" : "Simpan edit saat ini sebagai video baru (template asli tidak diubah)"} onClick={() => { setSaveMineLabel(activeMineEntry ? activeMineEntry.label : (fields.title.trim() || cur.label)); setSaveMineOpen(true); }}>
+                      <svg viewBox="0 0 24 24"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c1.1.89 2 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z" /></svg>
+                      {activeMineEntry ? "Perbarui video ini" : "Simpan sebagai video baru"}
+                    </button>
                 </div>
                 <p className="hint apply-state" role="status">{applyStateText}</p>
                 </div>

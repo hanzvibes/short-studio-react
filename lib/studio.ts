@@ -2755,7 +2755,7 @@ export const PROP_DEFS: PropDef[] = [
     "kind": "number",
     "min": 0.3,
     "max": 0.7,
-    "step": 0.05,
+    "step": 0.01,
     "files": ["template-meeting.html"],
     "unavailableReason": "Tidak ada di video ini.",
     "anchor": {
@@ -3917,18 +3917,18 @@ export const TYPE_CPS = 27; // huruf per detik di jendela ketik (SKILL.md)
  *  Pesan memakai bahasa sehari-hari, tanpa istilah dalam. */
 export function boardScoreErr(v: unknown, _ctx: { len: number }, id: string): string | null {
   if (!Array.isArray(v) || v.length !== 3) return `${id}: harus 3 angka.`;
-  for (const n of v) if (!Number.isInteger(n) || n < 0 || n > 100) return `${id}: tiap angka harus bilangan bulat 0..100 (dapat ${JSON.stringify(v)}).`;
+  for (const n of v) if (!Number.isInteger(n) || n < 0 || n > 100) return `${id}: tiap angka harus bilangan bulat 0..100.`;
   return null;
 }
 export function tankCurveErr(v: unknown, _ctx: { len: number }, id: string): string | null {
-  if (!Array.isArray(v) || v.length < 2) return `${id}: harus daftar [detik, persen] minimal 2 baris.`;
+  if (!Array.isArray(v) || v.length < 2) return `${id}: harus berisi daftar detik dan sisa kuota, minimal 2 baris.`;
   let prev = -Infinity;
   for (let i = 0; i < v.length; i++) {
     const r = v[i];
-    if (!Array.isArray(r) || r.length !== 2 || !isNum(r[0]) || !isNum(r[1])) return `${id} baris ${i + 1}: harus [detik, persen].`;
-    if (r[0] < 0) return `${id} baris ${i + 1}: detik ${r[0]} kurang dari 0.`;
-    if (r[0] <= prev) return `${id} baris ${i + 1}: detik harus naik terus.`;
-    if (r[1] < 0 || r[1] > 100) return `${id} baris ${i + 1}: persen ${r[1]} di luar 0..100.`;
+    if (!Array.isArray(r) || r.length !== 2 || !isNum(r[0]) || !isNum(r[1])) return `${id}: baris ${i + 1} harus berisi detik dan sisa kuota.`;
+    if (r[0] < 0) return `${id}: baris ${i + 1} detiknya kurang dari 0.`;
+    if (r[0] <= prev) return `${id}: baris ${i + 1} detiknya harus naik terus.`;
+    if (r[1] < 0 || r[1] > 100) return `${id}: baris ${i + 1} sisa kuotanya di luar 0..100.`;
     if (i === 0 && r[0] !== 0) return `${id}: baris pertama harus detik 0 (tangki mulai penuh).`;
     prev = r[0];
   }
@@ -3939,14 +3939,14 @@ export function rivalNotesErr(v: unknown, ctx: { len: number }, id: string): str
   let prevA = -Infinity;
   for (let i = 0; i < v.length; i++) {
     const n = v[i] as Record<string, unknown>;
-    if (!n || typeof n !== "object") return `${id} catatan ${i + 1}: isinya tidak lengkap.`;
-    if (n.f !== 0 && n.f !== 1) return `${id} catatan ${i + 1}: pengirim harus maskot oranye atau biru.`;
-    if (!Array.isArray(n.to) || n.to.length !== 2 || !n.to.every(isNum)) return `${id} catatan ${i + 1}: tujuan harus [kiri-kanan, tinggi].`;
-    if (!isNum(n.a) || !isNum(n.b) || !(0 <= (n.a as number) && (n.a as number) < (n.b as number) && (n.b as number) <= ctx.len)) return `${id} catatan ${i + 1}: waktunya harus 0 <= mulai < selesai <= durasi video (${ctx.len} detik).`;
-    if ((n.a as number) < prevA) return `${id} catatan ${i + 1}: waktu mulai harus naik terus.`;
-    if (!isNum(n.o) || !((n.o as number) === 99 || (n.o as number) >= (n.b as number))) return `${id} catatan ${i + 1}: waktu sobek harus sesudah selesai, atau 99 (= tidak pernah sobek).`;
-    if (!isNum(n.r)) return `${id} catatan ${i + 1}: putaran harus angka.`;
-    if (!Array.isArray(n.tx) || n.tx.length < 1 || n.tx.length > 2 || !n.tx.every((s) => typeof s === "string" && s.length >= 1 && s.length <= 14)) return `${id} catatan ${i + 1}: tulisannya harus 1-2 baris, tiap baris 1..14 huruf.`;
+    if (!n || typeof n !== "object") return `${id}: catatan ${i + 1} isinya tidak lengkap.`;
+    if (n.f !== 0 && n.f !== 1) return `${id}: catatan ${i + 1} pengirimnya harus maskot oranye atau biru.`;
+    if (!Array.isArray(n.to) || n.to.length !== 2 || !n.to.every(isNum)) return `${id}: catatan ${i + 1} tujuannya harus berisi geser kiri-kanan dan tinggi.`;
+    if (!isNum(n.a) || !isNum(n.b) || !(0 <= (n.a as number) && (n.a as number) < (n.b as number) && (n.b as number) <= ctx.len)) return `${id}: catatan ${i + 1} mulainya harus sebelum selesai, dan selesai tidak boleh lewat durasi video (${ctx.len} detik).`;
+    if ((n.a as number) < prevA) return `${id}: catatan ${i + 1} waktu mulainya harus naik terus.`;
+    if (!isNum(n.o) || !((n.o as number) === 99 || (n.o as number) >= (n.b as number))) return `${id}: catatan ${i + 1} waktu sobeknya harus sesudah selesai, atau 99 bila tidak pernah sobek.`;
+    if (!isNum(n.r)) return `${id}: catatan ${i + 1} putarannya harus angka.`;
+    if (!Array.isArray(n.tx) || n.tx.length < 1 || n.tx.length > 2 || !n.tx.every((s) => typeof s === "string" && s.length >= 1 && s.length <= 14)) return `${id}: catatan ${i + 1} tulisannya harus 1-2 baris, tiap baris 1..14 huruf.`;
     prevA = n.a as number;
   }
   return null;
@@ -3955,11 +3955,11 @@ export function warSpawnsErr(v: unknown, ctx: { len: number }, id: string): stri
   if (!Array.isArray(v) || v.length !== 2) return `${id}: harus dua daftar waktu (satu per pihak).`;
   for (let s = 0; s < 2; s++) {
     const row = v[s];
-    if (!Array.isArray(row) || row.length < 1 || row.length > 8) return `${id} pihak ${s + 1}: harus 1..8 waktu muncul.`;
+    if (!Array.isArray(row) || row.length < 1 || row.length > 8) return `${id}: pihak ${s + 1} harus berisi 1..8 waktu muncul.`;
     let prev = -Infinity;
     for (const t of row) {
-      if (!isNum(t) || t < 0 || t > ctx.len) return `${id} pihak ${s + 1}: waktu ${t} di luar 0..durasi video (${ctx.len} detik).`;
-      if ((t as number) <= prev) return `${id} pihak ${s + 1}: waktu harus naik terus.`;
+      if (!isNum(t) || t < 0 || t > ctx.len) return `${id}: pihak ${s + 1} waktunya ${t} di luar 0..durasi video (${ctx.len} detik).`;
+      if ((t as number) <= prev) return `${id}: pihak ${s + 1} waktunya harus naik terus.`;
       prev = t as number;
     }
   }
@@ -3970,22 +3970,22 @@ export function warCatapultsErr(v: unknown, ctx: { len: number }, id: string): s
   let prev = -Infinity;
   for (let i = 0; i < v.length; i++) {
     const r = v[i];
-    if (!Array.isArray(r) || r.length !== 6 || !r.every(isNum)) return `${id} tembakan ${i + 1}: harus 6 angka.`;
-    if (r[0] !== 0 && r[0] !== 1) return `${id} tembakan ${i + 1}: pihak harus maskot oranye atau biru.`;
-    if (r[1] < 0 || r[1] > ctx.len) return `${id} tembakan ${i + 1}: waktu mulai ${r[1]} di luar 0..durasi video (${ctx.len} detik).`;
-    if ((r[1] as number) <= prev) return `${id} tembakan ${i + 1}: waktu mulai harus naik terus.`;
+    if (!Array.isArray(r) || r.length !== 6 || !r.every(isNum)) return `${id}: tembakan ${i + 1} harus berisi pihak, waktu, lama, dan tujuan.`;
+    if (r[0] !== 0 && r[0] !== 1) return `${id}: tembakan ${i + 1} pihaknya harus maskot oranye atau biru.`;
+    if (r[1] < 0 || r[1] > ctx.len) return `${id}: tembakan ${i + 1} waktu mulainya ${r[1]} di luar 0..durasi video (${ctx.len} detik).`;
+    if ((r[1] as number) <= prev) return `${id}: tembakan ${i + 1} waktu mulainya harus naik terus.`;
     prev = r[1] as number;
   }
   return null;
 }
 export function typingWindowsErr(v: unknown, ctx: { len: number }, id: string): string | null {
-  if (!Array.isArray(v) || v.length === 0) return `${id}: harus daftar [mulai, selesai] yang tidak kosong.`;
+  if (!Array.isArray(v) || v.length === 0) return `${id}: harus berisi daftar waktu mulai dan selesai yang tidak kosong.`;
   let prevEnd = -Infinity;
   for (let i = 0; i < v.length; i++) {
     const w = v[i];
-    if (!Array.isArray(w) || w.length !== 2 || !isNum(w[0]) || !isNum(w[1])) return `${id} baris ${i + 1}: harus [mulai, selesai].`;
-    if (!(0 <= (w[0] as number) && (w[0] as number) < (w[1] as number) && (w[1] as number) <= ctx.len)) return `${id} baris ${i + 1}: harus 0 <= mulai < selesai <= durasi video (${ctx.len} detik).`;
-    if ((w[0] as number) < prevEnd) return `${id} baris ${i + 1}: waktunya tumpang tindih dengan baris sebelumnya.`;
+    if (!Array.isArray(w) || w.length !== 2 || !isNum(w[0]) || !isNum(w[1])) return `${id}: baris ${i + 1} harus berisi waktu mulai dan selesai.`;
+    if (!(0 <= (w[0] as number) && (w[0] as number) < (w[1] as number) && (w[1] as number) <= ctx.len)) return `${id}: baris ${i + 1} mulainya harus sebelum selesai, dan selesai tidak boleh lewat durasi video (${ctx.len} detik).`;
+    if ((w[0] as number) < prevEnd) return `${id}: baris ${i + 1} waktunya tumpang tindih dengan baris sebelumnya.`;
     prevEnd = w[1] as number;
   }
   return null;
@@ -3994,9 +3994,9 @@ export function typingLinesErr(v: unknown, _ctx: { len: number }, id: string): s
   if (!Array.isArray(v) || v.length === 0) return `${id}: harus daftar baris ketikan yang tidak kosong.`;
   for (let i = 0; i < v.length; i++) {
     const row = v[i];
-    if (!Array.isArray(row) || row.length < 1 || row.length > 4) return `${id} baris ${i + 1}: harus 1..4 baris teks.`;
+    if (!Array.isArray(row) || row.length < 1 || row.length > 4) return `${id}: baris ${i + 1} harus berisi 1..4 potong teks.`;
     for (const s of row) {
-      if (typeof s !== "string" || !s.length || s.length > 200) return `${id} baris ${i + 1}: tiap baris harus teks 1..200 huruf.`;
+      if (typeof s !== "string" || !s.length || s.length > 200) return `${id}: baris ${i + 1} tiap potong harus teks 1..200 huruf.`;
     }
   }
   return null;
@@ -4005,7 +4005,7 @@ export function screenCodeErr(v: unknown, _ctx: { len: number }, id: string): st
   if (!Array.isArray(v) || v.length === 0) return `${id}: harus daftar teks yang tidak kosong.`;
   for (let i = 0; i < v.length; i++) {
     const s = v[i];
-    if (typeof s !== "string" || !s.length || s.length > 200) return `${id} baris ${i + 1}: tiap baris harus teks 1..200 huruf.`;
+    if (typeof s !== "string" || !s.length || s.length > 200) return `${id}: baris ${i + 1} tiap potong harus teks 1..200 huruf.`;
   }
   return null;
 }
@@ -4021,7 +4021,7 @@ export function screenRecentErr(v: unknown, _ctx: { len: number }, id: string): 
   if (!Array.isArray(v) || v.length < 1 || v.length > 6) return `${id}: harus 1..6 baris.`;
   for (let i = 0; i < v.length; i++) {
     const s = v[i];
-    if (typeof s !== "string" || !s.length || s.length > 30) return `${id} baris ${i + 1}: tiap baris harus teks 1..30 huruf.`;
+    if (typeof s !== "string" || !s.length || s.length > 30) return `${id}: baris ${i + 1} tiap baris harus teks 1..30 huruf.`;
   }
   return null;
 }
@@ -4029,13 +4029,13 @@ export function screenPipelineErr(v: unknown, ctx: { len: number }, id: string):
   if (!Array.isArray(v) || v.length !== 2) return `${id}: harus dua daftar tahapan (sebelum gagal dan sesudah perbaikan).`;
   for (let k = 0; k < 2; k++) {
     const run = v[k];
-    if (!Array.isArray(run) || run.length === 0) return `${id} daftar ${k + 1}: harus ada minimal satu tahap.`;
+    if (!Array.isArray(run) || run.length === 0) return `${id}: daftar ${k + 1} harus ada minimal satu tahap.`;
     let prevEnd = -Infinity;
     for (let i = 0; i < run.length; i++) {
       const w = run[i];
-      if (!Array.isArray(w) || w.length !== 2 || !isNum(w[0]) || !isNum(w[1])) return `${id} daftar ${k + 1} tahap ${i + 1}: harus [mulai, selesai].`;
-      if (!(0 <= (w[0] as number) && (w[0] as number) < (w[1] as number) && (w[1] as number) <= ctx.len)) return `${id} daftar ${k + 1} tahap ${i + 1}: harus 0 <= mulai < selesai <= durasi video (${ctx.len} detik).`;
-      if ((w[0] as number) < prevEnd) return `${id} daftar ${k + 1} tahap ${i + 1}: waktunya tumpang tindih dengan tahap sebelumnya.`;
+      if (!Array.isArray(w) || w.length !== 2 || !isNum(w[0]) || !isNum(w[1])) return `${id}: daftar ${k + 1} tahap ${i + 1} harus berisi waktu mulai dan selesai.`;
+      if (!(0 <= (w[0] as number) && (w[0] as number) < (w[1] as number) && (w[1] as number) <= ctx.len)) return `${id}: daftar ${k + 1} tahap ${i + 1} mulainya harus sebelum selesai, dan selesai tidak boleh lewat durasi video (${ctx.len} detik).`;
+      if ((w[0] as number) < prevEnd) return `${id}: daftar ${k + 1} tahap ${i + 1} waktunya tumpang tindih dengan tahap sebelumnya.`;
       prevEnd = w[1] as number;
     }
   }
@@ -4046,12 +4046,12 @@ export function screenChatErr(v: unknown, ctx: { len: number }, id: string): str
   let prev = -Infinity;
   for (let i = 0; i < v.length; i++) {
     const r = v[i];
-    if (!Array.isArray(r) || r.length !== 4) return `${id} baris ${i + 1}: harus [detik, nama, pesan, warna].`;
-    if (!isNum(r[0]) || (r[0] as number) < 0 || (r[0] as number) > ctx.len) return `${id} baris ${i + 1}: detik harus 0..durasi video (${ctx.len} detik).`;
-    if ((r[0] as number) < prev) return `${id} baris ${i + 1}: detik harus naik terus.`;
-    if (typeof r[1] !== "string" || !r[1].length || r[1].length > 12) return `${id} baris ${i + 1}: nama harus 1..12 huruf.`;
-    if (typeof r[2] !== "string" || !r[2].length || r[2].length > 80) return `${id} baris ${i + 1}: pesan harus 1..80 huruf.`;
-    if (typeof r[3] !== "string" || !CHAT_COLORS.includes(r[3])) return `${id} baris ${i + 1}: warna harus salah satu dari ${CHAT_COLORS.join(", ")}.`;
+    if (!Array.isArray(r) || r.length !== 4) return `${id}: baris ${i + 1} harus berisi detik, nama, pesan, dan warna.`;
+    if (!isNum(r[0]) || (r[0] as number) < 0 || (r[0] as number) > ctx.len) return `${id}: baris ${i + 1} detiknya harus 0..durasi video (${ctx.len} detik).`;
+    if ((r[0] as number) < prev) return `${id}: baris ${i + 1} detiknya harus naik terus.`;
+    if (typeof r[1] !== "string" || !r[1].length || r[1].length > 12) return `${id}: baris ${i + 1} namanya harus 1..12 huruf.`;
+    if (typeof r[2] !== "string" || !r[2].length || r[2].length > 80) return `${id}: baris ${i + 1} pesannya harus 1..80 huruf.`;
+    if (typeof r[3] !== "string" || !CHAT_COLORS.includes(r[3])) return `${id}: baris ${i + 1} warnanya harus salah satu dari Oranye, Biru, Kuning, Hijau, Merah.`;
     prev = r[0] as number;
   }
   return null;
@@ -4075,7 +4075,7 @@ export function warButtonErr(v: unknown, _ctx: { len: number }, id: string): str
   for (let i = 0; i < 4; i++) {
     const c = v[i];
     if (!Array.isArray(c) || c.length !== 3 || !c.every((n) => isNum(n) && (n as number) >= 0 && (n as number) <= 1))
-      return `${id} warna ${i + 1}: harus 3 angka 0..1.`;
+      return `${id}: warna ${i + 1} harus berisi 3 angka 0..1.`;
   }
   return null;
 }
@@ -4763,7 +4763,7 @@ export function crossCheckProps(props: PropValues, len: number): Validation {
   const lines = props["typing.lines"];
   if (Array.isArray(win) && Array.isArray(lines)) {
     if (win.length !== lines.length)
-      errors.push(`typing: jumlah jendela WIN (${win.length}) != jumlah baris TL (${lines.length}) — tiap jendela butuh tepat satu baris ketikan.`);
+      errors.push(`typing.windows: jumlah jendela ketik (${win.length}) tidak sama dengan jumlah baris ketikan (${lines.length}) — tiap jendela butuh tepat satu baris ketikan.`);
     win.forEach((w, i) => {
       const row = lines[i];
       if (!Array.isArray(w) || !Array.isArray(row)) return;
@@ -4771,19 +4771,19 @@ export function crossCheckProps(props: PropValues, len: number): Validation {
       const dur = (w[1] as number) - (w[0] as number);
       if (!Number.isFinite(dur)) return;
       if (dur < chars / TYPE_CPS)
-        errors.push(`typing jendela #${i + 1}: ${chars} huruf butuh ${(chars / TYPE_CPS).toFixed(1)} dtk pada ${TYPE_CPS} huruf/detik, jendela hanya ${dur.toFixed(1)} dtk — teks akan terpotong.`);
+        errors.push(`typing.windows: ketikan baris #${i + 1}: ${chars} huruf butuh ${(chars / TYPE_CPS).toFixed(1)} dtk pada ${TYPE_CPS} huruf/detik, jendela hanya ${dur.toFixed(1)} dtk — teks akan terpotong.`);
       // M10: ambang "mepet" hanya 0,05 dtk di atas kebutuhan ketik —
       // margin 0,3 dtk lama memicu warning untuk nilai bawaan Bug Hunter
       // (jendela 1,6/1,3/4,2 dtk vs butuh 1,33/1,19/4,11 dtk) tanpa edit.
       else if (dur < chars / TYPE_CPS + 0.05)
-        warnings.push(`typing jendela #${i + 1}: ${dur.toFixed(1)} dtk — mepet untuk ${chars} huruf (butuh ~${(chars / TYPE_CPS + 0.05).toFixed(1)} dtk).`);
+        warnings.push(`typing.windows: ketikan baris #${i + 1}: ${dur.toFixed(1)} dtk — mepet untuk ${chars} huruf (butuh ~${(chars / TYPE_CPS + 0.05).toFixed(1)} dtk).`);
     });
   }
   const end = props["meeting.end"];
   if (typeof end === "number" && Array.isArray(win) && win.length) {
     const lastWin = Math.max(...win.map((w) => (Array.isArray(w) && isNum(w[1]) ? (w[1] as number) : -Infinity)));
     if (Number.isFinite(lastWin) && end <= lastWin)
-      errors.push(`meeting.end ${end} harus sesudah jendela ketik terakhir (${lastWin}) — timer/confetti/layar baca MEET_END yang sama.`);
+      errors.push(`meeting.end: waktu rapat selesai (${end} dtk) harus sesudah ketikan terakhir selesai (${lastWin} dtk).`);
   }
   void len;
   return { errors, warnings };
@@ -4926,6 +4926,11 @@ export function applyEdits(html: string, spec: EditSpec, len: number): ApplyResu
   if (Object.keys(text).length) {
     h = setText(h, text);
     applied.push("text");
+  }
+  // M20/M5: <title> file hasil edit ikut judul baru (sebelumnya judul lama
+  // template tetap tertulis di tab browser). Judul kosong tidak mengubahnya.
+  if (spec.title !== undefined && spec.title.trim() !== "") {
+    h = h.replace(/<title>[^<]*<\/title>/, `<title>${esc(spec.title.replace(/\s+/g, " ").trim())}</title>`);
   }
   if (spec.caps) {
     const r = setCaps(h, spec.caps);

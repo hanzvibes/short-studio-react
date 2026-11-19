@@ -262,6 +262,12 @@ kbd{font:600 11px/1 var(--mono);background:var(--panel-3);border:1px solid var(-
 .clip{position:absolute;top:4px;bottom:4px;border-radius:4px;overflow:hidden;display:flex;align-items:center;gap:5px;padding:0 6px;text-align:left;border:1px solid;transition:box-shadow .12s,filter .12s;min-width:2px;color:#fff;z-index:1;cursor:pointer}
 .clip:hover{z-index:2}
 .clip .clip-txt{display:flex;flex-direction:column;min-width:0;line-height:1.2;flex:1;overflow:hidden}
+/* G11b/M18: klip audio dua baris mepet/tepotong di tepi bawah strip (klip
+   20–28px vs teks dua baris ~23px). Satu baris seperti klip caption —
+   judul + keterangan sebaris dengan ellipsis. */
+.clip.audio .clip-txt{flex-direction:row;align-items:center;gap:4px}
+.clip.audio .clip-txt b{flex:0 0 auto}
+.clip.audio .clip-txt small{flex:1;min-width:0}
 .clip .clip-txt b{font-size:10.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .clip .clip-txt small{font:500 9px/1.2 var(--mono);color:rgba(255,255,255,.6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .clip .clip-time{font:600 9px/1 var(--mono);color:rgba(255,255,255,.5);flex:0 0 auto}
@@ -403,7 +409,10 @@ dialog[open]{animation:pop .18s var(--ease)}
 .dlg-b p{margin:0}
 .code{display:flex;align-items:stretch;gap:6px;background:#0b0d10;border:1px solid var(--line);color:#e8e3df;border-radius:5px;padding:8px 8px 8px 10px;font:500 11px/1.6 var(--mono);overflow:hidden}
 .code code{flex:1;word-break:break-all;align-self:center;min-width:0}
-.code .btn{align-self:flex-start;background:var(--panel-3);color:#fff;border-color:var(--line-2);flex:0 0 auto}
+/* G11b/M17: tombol Salin putih-di-atas-putih di tema terang (kontras 1,14:1)
+   karena --panel-3 terang di tema terang, sementara blok .code selalu gelap.
+   Latar dibuat gelap permanen seperti bloknya (kontras ~13:1 di kedua tema). */
+.code .btn{align-self:flex-start;background:#2a2d33;color:#fff;border-color:#3a3f47;flex:0 0 auto}
 .code .btn:hover{background:var(--accent);border-color:var(--accent)}
 .seg{display:inline-flex;background:var(--panel-3);border-radius:5px;padding:2px;gap:1px;align-self:flex-start;border:1px solid var(--line-soft)}
 .seg button{padding:4px 12px;border-radius:4px;font-size:11px;font-weight:600;color:var(--dim)}
@@ -467,6 +476,11 @@ dialog[open]{animation:pop .18s var(--ease)}
    display:none supaya tombol-tombolnya keluar dari urutan tab. Keluar
    lewat tombol yang sama di panel-h viewer atau Esc. */
 .app.focus-view{--tl-h:0px}
+/* G11b/V1366-11: FAB "Edit" menutupi sudut frame saat fokus portrait
+   (tumpang tindih ~3000px²) — disembunyikan selama fokus; keluar fokus
+   memunculkannya lagi (sheet tetap closed). Selektor 4 kelas supaya menang
+   atas .app.sheet-mode .sheet-fab (3 kelas, lebih bawah di file). */
+.app.focus-view.sheet-mode .sheet-fab{display:none}
 .app.focus-view .timeline{display:none}
 .app.focus-view .transport,.app.focus-view .now-cap{display:none}
 .app.focus-view .workspace{grid-template-rows:minmax(0,1fr) auto auto}
@@ -572,7 +586,9 @@ dialog[open]{animation:pop .18s var(--ease)}
   .doc-meta b{max-width:96px;font-size:11.5px}
   .tb-sep{display:none}
   .tb-actions #keysBtn{display:none}
-  .tb-actions #themeBtn{display:none}
+  /* G11b/M20: tombol tema kembali tampil di HP — topbar 390px muat
+     (brand disembunyikan <=400px); Pintasan tetap disembunyikan, dijangkau
+     lewat palet perintah (tombol cari di topbar). */
   .t-group .tbtn.optional{display:none}
   .play{width:28px;height:28px}
   .tc{font-size:10.5px}
@@ -667,8 +683,12 @@ dialog[open]{animation:pop .18s var(--ease)}
 /* --- Penyesuaian React/Next (bukan dari index.html asli) --- */
 /* Next.js membungkus halaman tanpa <div class="app"> tambahan; .app tetap dipakai di Studio.tsx. */
 html, body { height: 100%; }
-/* <dialog> di React: pastikan backdrop & posisi sama seperti aslinya. */
-dialog { margin: auto; }
+/* <dialog> di React: pastikan backdrop & posisi sama seperti aslinya.
+   G11b/M15: dialog menempel tepi atas viewport (Pintasan + palet top=0,
+   Ekspor/Simpan top=8 di 768–1366) — top eksplisit 16px. Sisi kanan sudah
+   bermargin lewat width min(470px, 100vw−24px). Di viewport pendek
+   (390 landscape) .dlg-b max-height 72vh menjaga dialog tetap muat. */
+dialog { margin: auto; top: 16px; }
 /* <dialog open> non-modal TIDAK masuk top layer — konten workspace yang
    di-scroll (mis. ruler timeline) bisa mengecat di atasnya dan mencegat
    klik, mis. tombol "Simpan video" di 390px sesudah scroll ke inspector.
@@ -775,6 +795,25 @@ dialog { z-index: 80; }
   .app.sheet-mode .inspector.sheet-closed{transform:translateY(100%);visibility:hidden;transition:transform .28s var(--ease),visibility 0s .28s}
   /* Keyboard terbuka: tinggi sheet di-clamp ke visualViewport − 76px. */
   .app.sheet-mode.kb-open .inspector{height:calc(var(--vv-h,100dvh) - 76px)}
+  /* G11b/M16: sheet Full menyesuaikan tinggi konten — sebelumnya tingginya
+     selalu 100dvh−76px sehingga tab Teks (konten ~560px) menyisakan
+     300–700px ruang kosong di bawah. height:auto + max-height menjaga
+     sheet tetap muat; panes flex-basis auto supaya konten pendek tidak
+     menciutkan panes jadi 0 (flex:1 basis 0% + min-height:0). */
+  .app.sheet-mode .inspector.sheet-full{height:auto;max-height:calc(100dvh - 76px)}
+  .app.sheet-mode .inspector.sheet-full .panes{flex:1 1 auto}
+  .app.sheet-mode.kb-open .inspector.sheet-full{max-height:calc(var(--vv-h,100dvh) - 76px)}
+  /* G11b/M20: di sheet Half, .panes setinggi inspector penuh (100dvh−76px)
+     padahal yang kelihatan hanya min(46dvh,480px) — baris aksi menempel
+     (insp-stick) jatuh di bawah viewport dan .panes tidak bisa di-scroll.
+     Batasi .panes setinggi bagian sheet yang kelihatan dikurangi chrome
+     (gagang 20 + kepala 56 + tab 36 = 112px) supaya .panes meng-scroll
+     dan Terapkan selalu terjangkau. */
+  .app.sheet-mode.sheet-half .inspector .panes{max-height:calc(min(46dvh,480px) - 112px)}
+  /* G11b/V1366-13: toast (bottom:34px) menutupi strip Peek sheet
+     (tumpang tindih ~2900px² di 768 portrait). Di mode sheet, toast pindah
+     ke atas (di bawah topbar) — tidak menutupi sheet maupun tombolnya. */
+  .app.sheet-mode .toast{top:calc(var(--topbar-h) + 12px);bottom:auto}
   /* .panes satu-satunya area scroll sheet; tanpa max-height 400px lama
      supaya snap Full benar-benar terisi. */
   .app.sheet-mode .inspector .panes{max-height:none;overscroll-behavior:contain;touch-action:pan-y}
