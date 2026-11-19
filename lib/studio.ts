@@ -618,7 +618,13 @@ export function validateShots(shots: Shot[], len: number): Validation {
     });
     if (i > 0 && s[0] <= shots[i - 1][0]) errors.push(`Shot #${n}: tidak terurut (mulai <= shot #${i}).`);
     const end = i + 1 < shots.length ? shots[i + 1][0] : len;
-    if (end - s[0] < 0.5) warnings.push(`Shot #${n}: hanya ${(end - s[0]).toFixed(1)} dtk — potongan sangat cepat.`);
+    // M9: durasi negatif = ERROR (shot mulai sesudah shot berikutnya),
+    // bukan warning "potongan sangat cepat". Warning itu hanya untuk
+    // 0 <= durasi < 0,5 dtk. Shot terakhir yang melewati durasi sudah
+    // dilaporkan error "mulai >= durasi" di atas, jadi pesan ini hanya
+    // untuk shot yang punya shot berikutnya.
+    if (i + 1 < shots.length && end - s[0] < 0) errors.push(`Shot #${n}: mulai sesudah Shot #${n + 1} — urutkan dulu.`);
+    else if (end - s[0] >= 0 && end - s[0] < 0.5) warnings.push(`Shot #${n}: hanya ${(end - s[0]).toFixed(1)} dtk — potongan sangat cepat.`);
   });
   return { errors, warnings };
 }
@@ -706,7 +712,7 @@ export const PROP_DEFS: PropDef[] = [
     "id": "claude.x",
     "label": "Maskot oranye · Geser kiri-kanan",
     "obj": "claude",
-    "plain": "Geser kiri-kanan",
+    "plain": "Geser kiri-kanan — Maskot oranye",
     "group": "Maskot oranye",
     "kind": "number",
     "min": -3,
@@ -869,7 +875,7 @@ export const PROP_DEFS: PropDef[] = [
     "id": "codex.x",
     "label": "Maskot biru · Geser kiri-kanan",
     "obj": "codex",
-    "plain": "Geser kiri-kanan",
+    "plain": "Geser kiri-kanan — Maskot biru",
     "group": "Maskot biru",
     "kind": "number",
     "min": -3,
@@ -902,7 +908,7 @@ export const PROP_DEFS: PropDef[] = [
     "id": "gemini.x",
     "label": "Maskot ungu · Geser kiri-kanan",
     "obj": "gemini",
-    "plain": "Geser kiri-kanan",
+    "plain": "Geser kiri-kanan — Maskot ungu",
     "group": "Maskot ungu",
     "kind": "number",
     "min": -3,
@@ -1455,7 +1461,7 @@ export const PROP_DEFS: PropDef[] = [
       "t": "hex",
       "prefix": "OR=M(0x"
     },
-    "hint": "Warna maskot oranye — garis tepi balon katanya ikut berubah."
+    "hint": "Warna maskot oranye — di sebagian video, garis tepi balon kata ikut berubah."
   },
   {
     "id": "codex.color",
@@ -1789,7 +1795,7 @@ export const PROP_DEFS: PropDef[] = [
     "id": "monitor.claude.x",
     "label": "Layar kecil · Geser kiri-kanan",
     "obj": "monitor",
-    "plain": "Geser kiri-kanan",
+    "plain": "Geser kiri-kanan — Monitor Claude",
     "group": "Layar kecil",
     "kind": "number",
     "min": -3,
@@ -1807,7 +1813,7 @@ export const PROP_DEFS: PropDef[] = [
     "id": "monitor.codex.x",
     "label": "Layar kecil · Geser kiri-kanan",
     "obj": "monitor",
-    "plain": "Geser kiri-kanan",
+    "plain": "Geser kiri-kanan — Monitor Codex",
     "group": "Layar kecil",
     "kind": "number",
     "min": -3,
@@ -1825,7 +1831,7 @@ export const PROP_DEFS: PropDef[] = [
     "id": "monitor.gemini.x",
     "label": "Layar kecil · Geser kiri-kanan",
     "obj": "monitor",
-    "plain": "Geser kiri-kanan",
+    "plain": "Geser kiri-kanan — Monitor Gemini",
     "group": "Layar kecil",
     "kind": "number",
     "min": -3,
@@ -1843,7 +1849,7 @@ export const PROP_DEFS: PropDef[] = [
     "id": "screen.x",
     "label": "Layar besar · Geser kiri-kanan",
     "obj": "screen",
-    "plain": "Geser kiri-kanan",
+    "plain": "Geser kiri-kanan — Layar besar",
     "group": "Layar besar",
     "kind": "number",
     "min": -2,
@@ -1895,7 +1901,7 @@ export const PROP_DEFS: PropDef[] = [
     "id": "mug.x",
     "label": "Cangkir · Geser kiri-kanan",
     "obj": "mug",
-    "plain": "Geser kiri-kanan",
+    "plain": "Geser kiri-kanan — Cangkir",
     "group": "Cangkir",
     "kind": "number",
     "min": -3,
@@ -1920,7 +1926,7 @@ export const PROP_DEFS: PropDef[] = [
     "id": "window.x",
     "label": "Jendela · Geser kiri-kanan",
     "obj": "window",
-    "plain": "Geser kiri-kanan",
+    "plain": "Geser kiri-kanan — Jendela",
     "group": "Jendela",
     "kind": "number",
     "min": -4,
@@ -1946,7 +1952,7 @@ export const PROP_DEFS: PropDef[] = [
     "id": "lamp.x",
     "label": "Lampu · Geser kiri-kanan",
     "obj": "lamp",
-    "plain": "Geser kiri-kanan",
+    "plain": "Geser kiri-kanan — Lampu",
     "group": "Lampu",
     "kind": "number",
     "min": -5,
@@ -2065,6 +2071,7 @@ export const PROP_DEFS: PropDef[] = [
     "plain": "Tahapan jalan",
     "group": "Layar besar",
     "kind": "array",
+    "control": "pipeline",
     "files": ["template-deploy.html"],
     "unavailableReason": "Tidak ada di video ini.",
     "anchor": {
@@ -2090,7 +2097,7 @@ export const PROP_DEFS: PropDef[] = [
       "end": "]];"
     },
     "validate": screenEditorErr,
-    "hint": "Isi editor di layar untuk tiap bagian cerita (4 bagian)."
+    "hint": "Isi editor di layar untuk tiap bagian cerita (4 bagian: sebelum alarm, konflik, sesudah hapus tanda, beres). Ubah hanya teksnya — biarkan tanda kurung dan angka waktunya apa adanya."
   },
   {
     "id": "screen.chat",
@@ -2099,6 +2106,7 @@ export const PROP_DEFS: PropDef[] = [
     "plain": "Isi obrolan",
     "group": "Layar besar",
     "kind": "array",
+    "control": "chat",
     "files": ["template-meeting.html"],
     "unavailableReason": "Tidak ada di video ini.",
     "anchor": {
@@ -2209,7 +2217,7 @@ export const PROP_DEFS: PropDef[] = [
     "id": "tank.x",
     "label": "Tangki kuota · Geser kiri-kanan",
     "obj": "tank",
-    "plain": "Geser kiri-kanan",
+    "plain": "Geser kiri-kanan — Tangki kuota",
     "group": "Tangki kuota",
     "kind": "number",
     "min": -2,
@@ -2247,7 +2255,7 @@ export const PROP_DEFS: PropDef[] = [
     "id": "keyboard.x",
     "label": "Keyboard · Geser kiri-kanan",
     "obj": "keyboard",
-    "plain": "Geser kiri-kanan",
+    "plain": "Geser kiri-kanan — Keyboard",
     "group": "Keyboard",
     "kind": "number",
     "min": -1,
@@ -2416,7 +2424,7 @@ export const PROP_DEFS: PropDef[] = [
       "name": "NT"
     },
     "validate": rivalNotesErr,
-    "hint": "Tulisan di catatan tempel di dinding."
+    "hint": "Tulisan di catatan tempel di dinding — tiap catatan berisi pengirim, posisi, waktu tampil dan sobek, serta 1–2 baris tulisan."
   },
   {
     "id": "war.spawns",
@@ -2442,6 +2450,7 @@ export const PROP_DEFS: PropDef[] = [
     "plain": "Waktu tembakan",
     "group": "Katapel",
     "kind": "array",
+    "control": "catapults",
     "files": ["template-perang.html"],
     "unavailableReason": "Tidak ada di video ini.",
     "anchor": {
@@ -2613,6 +2622,7 @@ export const PROP_DEFS: PropDef[] = [
     "plain": "Warna tombol yang berputar",
     "group": "Tombol & tagihan",
     "kind": "array",
+    "control": "rgb",
     "files": ["template-perang.html"],
     "unavailableReason": "Tidak ada di video ini.",
     "anchor": {
@@ -2665,7 +2675,7 @@ export const PROP_DEFS: PropDef[] = [
     "id": "boss.x",
     "label": "Bos · Geser kiri-kanan",
     "obj": "boss",
-    "plain": "Geser kiri-kanan",
+    "plain": "Geser kiri-kanan — Bos",
     "group": "Bos",
     "kind": "number",
     "min": 28,
@@ -2838,6 +2848,7 @@ export const PROP_DEFS: PropDef[] = [
     "plain": "Baris yang diketik",
     "group": "Tulisan yang diketik",
     "kind": "array",
+    "control": "tlines",
     "files": ["template-bughunter.html", "template-bomb.html", "template-meeting.html"],
     "unavailableReason": "Tidak ada di video ini.",
     "anchor": {
@@ -4278,7 +4289,7 @@ function parseJsStringAt(html: string, i: number): JsStringSpan | null {
 }
 const jsSingle = (s: string): string => "'" + String(s).replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/\n/g, "\\n") + "'";
 /** Warna balon obrolan yang dipakai template-meeting (nama, bukan kode). */
-const CHAT_COLORS = ["ORG", "BLU", "YEL", "GRN", "RED"];
+export const CHAT_COLORS = ["ORG", "BLU", "YEL", "GRN", "RED"];
 /** Parse array CHAT (baris [detik, nama, pesan, WARNA]) — warnanya nama
  *  (ORG/BLU/...) tanpa kutip, jadi parser literal biasa tidak bisa. */
 function parseChat(html: string): unknown[] | null {
@@ -4761,8 +4772,11 @@ export function crossCheckProps(props: PropValues, len: number): Validation {
       if (!Number.isFinite(dur)) return;
       if (dur < chars / TYPE_CPS)
         errors.push(`typing jendela #${i + 1}: ${chars} huruf butuh ${(chars / TYPE_CPS).toFixed(1)} dtk pada ${TYPE_CPS} huruf/detik, jendela hanya ${dur.toFixed(1)} dtk — teks akan terpotong.`);
-      else if (dur < chars / TYPE_CPS + 0.3)
-        warnings.push(`typing jendela #${i + 1}: ${dur.toFixed(1)} dtk — mepet untuk ${chars} huruf (butuh ~${(chars / TYPE_CPS + 0.3).toFixed(1)} dtk).`);
+      // M10: ambang "mepet" hanya 0,05 dtk di atas kebutuhan ketik —
+      // margin 0,3 dtk lama memicu warning untuk nilai bawaan Bug Hunter
+      // (jendela 1,6/1,3/4,2 dtk vs butuh 1,33/1,19/4,11 dtk) tanpa edit.
+      else if (dur < chars / TYPE_CPS + 0.05)
+        warnings.push(`typing jendela #${i + 1}: ${dur.toFixed(1)} dtk — mepet untuk ${chars} huruf (butuh ~${(chars / TYPE_CPS + 0.05).toFixed(1)} dtk).`);
     });
   }
   const end = props["meeting.end"];

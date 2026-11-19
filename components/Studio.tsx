@@ -3,6 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   BRIDGE,
+  CHAT_COLORS,
   OBJECTS,
   applyEdits,
   clamp,
@@ -26,6 +27,7 @@ import {
   slug,
   SPK,
   TEMPLATES,
+  TYPE_CPS,
   validateCaps,
   validateProps,
   validateShots,
@@ -145,8 +147,10 @@ const CLICK_ZONES: Record<string, { x0: number; x1: number; y0: number; y1: numb
   "template-trio.html": [
     { x0: 0.3, x1: 0.7, y0: 0.02, y1: 0.2, obj: "board" },
     { x0: 0.02, x1: 0.36, y0: 0.35, y1: 0.95, obj: "claude" },
-    { x0: 0.36, x1: 0.64, y0: 0.3, y1: 0.9, obj: "gemini" },
-    { x0: 0.64, x1: 0.98, y0: 0.35, y1: 0.95, obj: "codex" },
+    // M6: Codex di TENGAH (x=0), Gemini di KANAN (x=+2.6) — sebelumnya
+    // tertukar (tengah memilih "Maskot ungu", kanan memilih "Maskot biru").
+    { x0: 0.36, x1: 0.64, y0: 0.3, y1: 0.9, obj: "codex" },
+    { x0: 0.64, x1: 0.98, y0: 0.35, y1: 0.95, obj: "gemini" },
   ],
   "template-code.html": [
     { x0: 0.3, x1: 0.7, y0: 0.02, y1: 0.2, obj: "board" },
@@ -184,10 +188,23 @@ const CLICK_ZONES: Record<string, { x0: number; x1: number; y0: number; y1: numb
     { x0: 0.25, x1: 0.75, y0: 0.3, y1: 0.95, obj: "claude" },
   ],
   "template-bomb.html": [
+    // M6: zona kecil didahulukan (diperiksa berurutan, yang pertama cocok
+    // menang) supaya tidak tertelan zona layar/maskot yang besar.
+    // Jendela di dinding kiri atas, jam hitung mundur bom di tengah atas,
+    // cangkir di meja kanan bawah. Lampu TIDAK punya zona: di template ini
+    // lampu hanya sumber cahaya (SpotLight), tanpa mesh yang terlihat.
+    // "Tulisan yang diketik" tampil DI layar — ikut zona layar.
+    { x0: 0.04, x1: 0.22, y0: 0.08, y1: 0.3, obj: "window" },
+    { x0: 0.35, x1: 0.65, y0: 0.1, y1: 0.22, obj: "bomb" },
+    { x0: 0.62, x1: 0.78, y0: 0.6, y1: 0.78, obj: "mug" },
     { x0: 0.1, x1: 0.9, y0: 0.03, y1: 0.3, obj: "screen" },
     { x0: 0.25, x1: 0.75, y0: 0.3, y1: 0.95, obj: "claude" },
   ],
   "template-meeting.html": [
+    // M6: cangkir (deretan di meja kanan) + jendela (dinding kiri atas).
+    // Lampu juga di sini hanya SpotLight tanpa mesh — tanpa zona.
+    { x0: 0.04, x1: 0.22, y0: 0.08, y1: 0.3, obj: "window" },
+    { x0: 0.62, x1: 0.78, y0: 0.6, y1: 0.78, obj: "mug" },
     { x0: 0.1, x1: 0.9, y0: 0.03, y1: 0.3, obj: "screen" },
     { x0: 0.25, x1: 0.75, y0: 0.3, y1: 0.95, obj: "claude" },
   ],
@@ -237,13 +254,13 @@ function fmtSliderVal(v: number, def: PropDef, file: string): string {
 }
 
 /** Satu baris kontrol slider angka + tombol kembali ke asli. */
-function ObjSlider({ def, file, value, orig, err, onNum }: {
-  def: PropDef; file: string; value: number; orig: PropValue | undefined; err?: string[]; onNum: (v: number) => void;
+function ObjSlider({ def, file, value, orig, err, rejected, onNum }: {
+  def: PropDef; file: string; value: number; orig: PropValue | undefined; err?: string[]; rejected?: string | null; onNum: (v: number) => void;
 }) {
   const r = rangeOf(def, file);
   const changed = JSON.stringify(value) !== JSON.stringify(orig);
   return (
-    <div className={`prop-ctl${err?.length ? " err" : ""}`}>
+    <div className={`prop-ctl${err?.length || rejected ? " err" : ""}`}>
       <div className="prop-ctl-h">
         <span>{def.plain}</span>
         <b>{fmtSliderVal(value, def, file)}</b>
@@ -254,6 +271,7 @@ function ObjSlider({ def, file, value, orig, err, onNum }: {
       <input type="range" min={r.min} max={r.max} step={r.step} value={value} aria-label={def.plain}
         onChange={(e) => onNum(parseFloat(e.target.value))} />
       {def.hint && <em className="prop-hint">{def.hint}</em>}
+      {rejected && <p className="valid-err">{rejected}</p>}
       {err?.map((e, k) => <p key={k} className="valid-err row-err">{stripPropId(e)}</p>)}
     </div>
   );
@@ -279,9 +297,12 @@ function ObjChoice({ def, value, err, onNum }: {
 }
 
 /** Pemilih warna saja (tanpa kode hex). */
-function ObjColor({ def, value, err, onVal }: {
-  def: PropDef; value: string; err?: string[]; onVal: (v: string) => void;
+function ObjColor({ def, value, orig, err, onVal, onRestore }: {
+  def: PropDef; value: string; orig?: string; err?: string[]; onVal: (v: string) => void; onRestore?: () => void;
 }) {
+  // M8: tombol ↺ per-kontrol seperti slider (sebelumnya warna hanya bisa
+  // dikembalikan lewat Kembalikan se-tab).
+  const changed = orig !== undefined && value !== orig;
   return (
     <div className={`prop-ctl${err?.length ? " err" : ""}`}>
       <div className="prop-ctl-h"><span>{def.plain}</span>
@@ -289,6 +310,9 @@ function ObjColor({ def, value, err, onVal }: {
           <input type="color" value={/^#[0-9a-fA-F]{6}$/.test(value) ? value : "#d97757"} aria-label={def.plain}
             onChange={(e) => onVal(e.target.value)} />
         </span>
+        {changed && onRestore && (
+          <button className="btn ghost small" title="Kembalikan ke nilai asli" onClick={onRestore}>↺</button>
+        )}
       </div>
       {def.hint && <em className="prop-hint">{def.hint}</em>}
       {err?.map((e, k) => <p key={k} className="valid-err row-err">{stripPropId(e)}</p>)}
@@ -315,12 +339,17 @@ function ObjText({ def, value, err, onVal }: {
 }
 
 /** Tiga slider skor papan (Kebersihan / Tes lulus / Performa). */
-function ObjScores({ def, value, err, onArr }: {
-  def: PropDef; value: number[]; err?: string[]; onArr: (v: unknown[]) => void;
+function ObjScores({ def, value, orig, err, onArr, onRestore }: {
+  def: PropDef; value: number[]; orig?: unknown; err?: string[]; onArr: (v: unknown[]) => void; onRestore?: () => void;
 }) {
+  const changed = orig !== undefined && JSON.stringify(value) !== JSON.stringify(orig);
   return (
     <div className={`prop-ctl${err?.length ? " err" : ""}`}>
-      <div className="prop-ctl-h"><span>{def.plain}</span></div>
+      <div className="prop-ctl-h"><span>{def.plain}</span>
+        {changed && onRestore && (
+          <button className="btn ghost small" title="Kembalikan ke nilai asli" onClick={onRestore}>↺</button>
+        )}
+      </div>
       {[0, 1, 2].map((i) => (
         <div key={i} className="prop-sub">
           <div className="prop-ctl-h"><span>{SCORE_LABELS[i]}</span><b>{Math.round(value[i] ?? 0)}</b></div>
@@ -337,9 +366,10 @@ function ObjScores({ def, value, err, onArr }: {
 /** Kurva tangki kuota: baris [detik, persen] dengan dua slider.
  *  Baris pertama selalu detik 0 (tangki mulai penuh); slider detik
  *  dijepit ke baris tetangga supaya urutan tetap naik. */
-function ObjCurve({ def, value, len, err, onArr }: {
-  def: PropDef; value: number[][]; len: number; err?: string[]; onArr: (v: unknown[]) => void;
+function ObjCurve({ def, value, len, orig, err, onArr, onRestore }: {
+  def: PropDef; value: number[][]; len: number; orig?: unknown; err?: string[]; onArr: (v: unknown[]) => void; onRestore?: () => void;
 }) {
+  const curveChanged = orig !== undefined && JSON.stringify(value) !== JSON.stringify(orig);
   const setCell = (i: number, k: 0 | 1, v: number) => {
     const next = value.map((r) => [...r]);
     next[i][k] = v;
@@ -349,7 +379,11 @@ function ObjCurve({ def, value, len, err, onArr }: {
   const canAdd = value.length > 0 && last && last[0] < len - 0.1;
   return (
     <div className={`prop-ctl${err?.length ? " err" : ""}`}>
-      <div className="prop-ctl-h"><span>{def.plain}</span><em>{value.length} baris</em></div>
+      <div className="prop-ctl-h"><span>{def.plain}</span><em>{value.length} baris</em>
+        {curveChanged && onRestore && (
+          <button className="btn ghost small" title="Kembalikan ke nilai asli" onClick={onRestore}>↺</button>
+        )}
+      </div>
       {value.map((row, i) => {
         const prev = i > 0 ? value[i - 1][0] : 0;
         const nxt = i + 1 < value.length ? value[i + 1][0] : len;
@@ -383,10 +417,14 @@ function ObjCurve({ def, value, len, err, onArr }: {
 }
 
 /** Jendela ketik: baris [mulai, selesai] dengan dua slider.
- *  Slider dijepit ke baris tetangga supaya tidak tumpang tindih. */
-function ObjWindows({ def, value, len, err, onArr }: {
-  def: PropDef; value: number[][]; len: number; err?: string[]; onArr: (v: unknown[]) => void;
+ *  Slider dijepit ke baris tetangga supaya tidak tumpang tindih.
+ *  M4: slider juga dijepit ke kebutuhan ketik minimum (minDur[i] =
+ *  huruf baris ke-i / 27 huruf per detik) — ujung slider tidak lagi
+ *  bisa mencapai jendela 0,1 dtk yang pasti ditolak validasi. */
+function ObjWindows({ def, value, len, err, minDur, orig, onArr, onRestore }: {
+  def: PropDef; value: number[][]; len: number; err?: string[]; minDur?: number[]; orig?: unknown; onArr: (v: unknown[]) => void; onRestore?: () => void;
 }) {
+  const winChanged = orig !== undefined && JSON.stringify(value) !== JSON.stringify(orig);
   const setCell = (i: number, k: 0 | 1, v: number) => {
     const next = value.map((r) => [...r]);
     next[i][k] = v;
@@ -396,10 +434,16 @@ function ObjWindows({ def, value, len, err, onArr }: {
   const canAdd = value.length > 0 && last && last[1] < len - 0.2;
   return (
     <div className={`prop-ctl${err?.length ? " err" : ""}`}>
-      <div className="prop-ctl-h"><span>{def.plain}</span><em>{value.length} baris</em></div>
+      <div className="prop-ctl-h"><span>{def.plain}</span><em>{value.length} baris</em>
+        {winChanged && onRestore && (
+          <button className="btn ghost small" title="Kembalikan ke nilai asli" onClick={onRestore}>↺</button>
+        )}
+      </div>
       {value.map((row, i) => {
         const prevEnd = i > 0 ? value[i - 1][1] : 0;
         const nextStart = i + 1 < value.length ? value[i + 1][0] : len;
+        // M4: jendela minimal = kebutuhan ketik baris ini (bila diketahui).
+        const need = Math.max(0.1, minDur?.[i] ?? 0.1);
         return (
           <div key={i} className="prop-sub">
             <div className="prop-ctl-h"><span>Baris {i + 1}</span>
@@ -408,10 +452,10 @@ function ObjWindows({ def, value, len, err, onArr }: {
               )}
             </div>
             <div className="prop-ctl-h"><span>Mulai</span><b>{row[0].toFixed(1)} dtk</b></div>
-            <input type="range" min={prevEnd} max={Math.max(prevEnd, row[1] - 0.1)} step={0.1} value={row[0]} aria-label={`Baris ${i + 1} mulai`}
+            <input type="range" min={prevEnd} max={Math.max(prevEnd, row[1] - need)} step={0.1} value={row[0]} aria-label={`Baris ${i + 1} mulai`}
               onChange={(e) => setCell(i, 0, parseFloat(e.target.value))} />
             <div className="prop-ctl-h"><span>Selesai</span><b>{row[1].toFixed(1)} dtk</b></div>
-            <input type="range" min={Math.min(row[0] + 0.1, nextStart)} max={nextStart} step={0.1} value={row[1]} aria-label={`Baris ${i + 1} selesai`}
+            <input type="range" min={Math.min(Math.max(row[0] + 0.1, row[0] + need), nextStart)} max={nextStart} step={0.1} value={row[1]} aria-label={`Baris ${i + 1} selesai`}
               onChange={(e) => setCell(i, 1, parseFloat(e.target.value))} />
           </div>
         );
@@ -424,9 +468,10 @@ function ObjWindows({ def, value, len, err, onArr }: {
 }
 
 /** Waktu pasukan muncul: dua daftar slider detik (oranye / biru). */
-function ObjSpawns({ def, value, len, err, onArr }: {
-  def: PropDef; value: number[][]; len: number; err?: string[]; onArr: (v: unknown[]) => void;
+function ObjSpawns({ def, value, len, orig, err, onArr, onRestore }: {
+  def: PropDef; value: number[][]; len: number; orig?: unknown; err?: string[]; onArr: (v: unknown[]) => void; onRestore?: () => void;
 }) {
+  const spawnsChanged = orig !== undefined && JSON.stringify(value) !== JSON.stringify(orig);
   const sides = ["Pasukan oranye", "Pasukan biru"] as const;
   const setCell = (side: 0 | 1, i: number, v: number) => {
     const next = [[...value[0]], [...value[1]]];
@@ -447,7 +492,11 @@ function ObjSpawns({ def, value, len, err, onArr }: {
   };
   return (
     <div className={`prop-ctl${err?.length ? " err" : ""}`}>
-      <div className="prop-ctl-h"><span>{def.plain}</span></div>
+      <div className="prop-ctl-h"><span>{def.plain}</span>
+        {spawnsChanged && onRestore && (
+          <button className="btn ghost small" title="Kembalikan ke nilai asli" onClick={onRestore}>↺</button>
+        )}
+      </div>
       {([0, 1] as const).map((side) => {
         const row = value[side] || [];
         const canAdd = row.length < 8 && (row.length === 0 || row[row.length - 1] < len - 0.1);
@@ -480,14 +529,19 @@ function ObjSpawns({ def, value, len, err, onArr }: {
 }
 
 /** Daftar baris teks (kode / perintah / pesan): satu baris per baris. */
-function ObjLines({ def, value, err, onArr }: {
-  def: PropDef; value: string[]; err?: string[]; onArr: (v: unknown[]) => void;
+function ObjLines({ def, value, orig, err, onArr, onRestore }: {
+  def: PropDef; value: string[]; orig?: unknown; err?: string[]; onArr: (v: unknown[]) => void; onRestore?: () => void;
 }) {
   const [text, setText] = useState(value.join("\n"));
   useEffect(() => { setText(value.join("\n")); }, [value]);
+  const linesChanged = orig !== undefined && JSON.stringify(value) !== JSON.stringify(orig);
   return (
     <div className={`prop-ctl${err?.length ? " err" : ""}`}>
-      <div className="prop-ctl-h"><span>{def.plain}</span><em>{value.length} baris</em></div>
+      <div className="prop-ctl-h"><span>{def.plain}</span><em>{value.length} baris</em>
+        {linesChanged && onRestore && (
+          <button className="btn ghost small" title="Kembalikan ke nilai asli" onClick={onRestore}>↺</button>
+        )}
+      </div>
       <textarea rows={Math.min(10, Math.max(3, value.length + 1))} spellCheck={false} value={text} aria-label={def.plain}
         onChange={(e) => { setText(e.target.value); onArr(e.target.value.split("\n")); }} />
       {def.hint && <em className="prop-hint">{def.hint}</em>}
@@ -496,19 +550,274 @@ function ObjLines({ def, value, err, onArr }: {
   );
 }
 
-/** Daftar yang masih ditulis sebagai teks (catatan tempel, ketapel,
- *  obrolan, tahapan, warna tombol, baris ketikan): penjelasan awam +
- *  error bila bentuknya tidak sesuai. */
-function ObjJson({ def, text, err, onText }: {
-  def: PropDef; text: string; err?: string; onText: (t: string) => void;
+/** Daftar yang masih ditulis sebagai teks (hanya catatan tempel —
+ *  kontrol array lain sudah punya editor terstruktur, lihat M3 di bawah):
+ *  penjelasan awam + error bila bentuknya tidak sesuai. */
+function ObjJson({ def, text, orig, err, onText, onRestore }: {
+  def: PropDef; text: string; orig?: unknown; err?: string; onText: (t: string) => void; onRestore?: () => void;
 }) {
+  // M8: tombol ↺ per-kontrol — jalan keluar saat isi tidak valid
+  // (sebelumnya Kembalikan se-tab nonaktif tepat saat dibutuhkan, U21).
+  const changed = orig !== undefined && text !== JSON.stringify(orig);
   return (
     <div className={`prop-ctl${err ? " err" : ""}`}>
-      <div className="prop-ctl-h"><span>{def.plain}</span></div>
+      <div className="prop-ctl-h"><span>{def.plain}</span>
+        {changed && onRestore && (
+          <button className="btn ghost small" title="Kembalikan ke nilai asli" onClick={onRestore}>↺</button>
+        )}
+      </div>
       <textarea rows={6} spellCheck={false} value={text} aria-label={def.plain} onChange={(e) => onText(e.target.value)} />
       {def.hint && <em className="prop-hint">{def.hint}</em>}
       <em className="prop-hint">Tulis sebagai daftar seperti nilai aslinya — salah ketik akan ditolak dan Terapkan ditahan.</em>
       {err && <em className="valid-err">{err}</em>}
+    </div>
+  );
+}
+
+/** M3 — editor terstruktur pengganti JSON mentah. Semuanya menerima
+ *  `orig` + `onRestore` (M8: tombol ↺ per-kontrol) dan menampilkan
+ *  error validasi di barisnya sendiri. Nilai baru yang valid masuk
+ *  draftProps lewat onArr (applyArrayValue); yang tidak valid ditolak
+ *  di sana + pesan tampil, draft tidak berubah. */
+
+// Label awam warna obrolan (nilai simpanan tetap kodenya).
+const CHAT_COLOR_LABELS: Record<string, string> = { ORG: "Oranye", BLU: "Biru", YEL: "Kuning", GRN: "Hijau", RED: "Merah" };
+
+/** Baris yang diketik (typing.lines): tiap baris = 1–4 potong teks.
+ *  Baris baru berisi "$ " dan potongan baru berisi satu spasi — keduanya
+ *  lolos validator (1..200 huruf) supaya tombol tambah langsung bekerja;
+ *  pengguna mengetik menimpanya. */
+function ObjTypingLines({ def, value, orig, err, onArr, onRestore }: {
+  def: PropDef; value: string[][]; orig?: unknown; err?: string[]; onArr: (v: unknown[]) => void; onRestore?: () => void;
+}) {
+  const changed = orig !== undefined && JSON.stringify(value) !== JSON.stringify(orig);
+  const setSeg = (i: number, k: number, t: string) => {
+    const next = value.map((r) => [...r]);
+    next[i][k] = t;
+    onArr(next);
+  };
+  return (
+    <div className={`prop-ctl${err?.length ? " err" : ""}`}>
+      <div className="prop-ctl-h"><span>{def.plain}</span><em>{value.length} baris</em>
+        {changed && onRestore && (
+          <button className="btn ghost small" title="Kembalikan ke nilai asli" onClick={onRestore}>↺</button>
+        )}
+      </div>
+      {value.map((row, i) => (
+        <div key={i} className="prop-sub">
+          <div className="prop-ctl-h"><span>Baris {i + 1}</span>
+            {value.length > 1 && (
+              <button className="btn ghost small" title="Hapus baris ini" onClick={() => onArr(value.filter((_, j) => j !== i))}>Hapus</button>
+            )}
+          </div>
+          {row.map((seg, k) => (
+            <div key={k} style={{ display: "flex", gap: 4, marginBottom: 4 }}>
+              <input type="text" value={seg} aria-label={`Baris ${i + 1} potongan ${k + 1}`} style={{ flex: 1, minWidth: 0 }}
+                onChange={(e) => setSeg(i, k, e.target.value)} />
+              {row.length > 1 && (
+                <button className="btn ghost small" title="Hapus potongan ini" onClick={() => { const next = value.map((r) => [...r]); next[i] = next[i].filter((_, j) => j !== k); onArr(next); }}>Hapus</button>
+              )}
+            </div>
+          ))}
+          {row.length < 4 && (
+            <button className="btn ghost small" onClick={() => { const next = value.map((r) => [...r]); next[i] = [...next[i], " "]; onArr(next); }}>+ Tambah potongan</button>
+          )}
+        </div>
+      ))}
+      <button className="btn ghost small" onClick={() => onArr([...value, ["$ "]])}>+ Tambah baris</button>
+      {def.hint && <em className="prop-hint">{def.hint}</em>}
+      {err?.map((e, k) => <p key={k} className="valid-err row-err">{stripPropId(e)}</p>)}
+    </div>
+  );
+}
+
+/** Isi obrolan (screen.chat): tiap baris = detik, nama, pesan, warna. */
+function ObjChat({ def, value, len, orig, err, onArr, onRestore }: {
+  def: PropDef; value: [number, string, string, string][]; len: number; orig?: unknown; err?: string[]; onArr: (v: unknown[]) => void; onRestore?: () => void;
+}) {
+  const changed = orig !== undefined && JSON.stringify(value) !== JSON.stringify(orig);
+  const lastT = value.length ? (value[value.length - 1][0] as number) : 0;
+  const canAdd = lastT < len - 0.1;
+  const setCell = (i: number, k: 0 | 1 | 2 | 3, v: number | string) => {
+    const next = value.map((r) => [...r] as [number, string, string, string]);
+    (next[i] as unknown[])[k] = v;
+    onArr(next);
+  };
+  return (
+    <div className={`prop-ctl${err?.length ? " err" : ""}`}>
+      <div className="prop-ctl-h"><span>{def.plain}</span><em>{value.length} baris</em>
+        {changed && onRestore && (
+          <button className="btn ghost small" title="Kembalikan ke nilai asli" onClick={onRestore}>↺</button>
+        )}
+      </div>
+      {value.map((row, i) => (
+        <div key={i} className="prop-sub">
+          <div className="prop-ctl-h"><span>Baris {i + 1}</span>
+            {value.length > 1 && (
+              <button className="btn ghost small" title="Hapus baris ini" onClick={() => onArr(value.filter((_, j) => j !== i))}>Hapus</button>
+            )}
+          </div>
+          <div className="prop-ctl-h"><span>Detik</span><b>{Number(row[0]).toFixed(1)} dtk</b></div>
+          <input type="range" min={0} max={len} step={0.1} value={row[0]} aria-label={`Baris ${i + 1} detik`}
+            onChange={(e) => setCell(i, 0, parseFloat(e.target.value))} />
+          <div style={{ display: "flex", gap: 4 }}>
+            <input type="text" value={row[1]} maxLength={12} placeholder="Nama" aria-label={`Baris ${i + 1} nama`} style={{ flex: "0 0 84px", minWidth: 0 }}
+              onChange={(e) => setCell(i, 1, e.target.value)} />
+            <input type="text" value={row[2]} maxLength={80} placeholder="Pesan" aria-label={`Baris ${i + 1} pesan`} style={{ flex: 1, minWidth: 0 }}
+              onChange={(e) => setCell(i, 2, e.target.value)} />
+            <select value={row[3]} aria-label={`Baris ${i + 1} warna`} style={{ flex: "0 0 92px", minWidth: 0 }}
+              onChange={(e) => setCell(i, 3, e.target.value)}>
+              {CHAT_COLORS.map((c) => <option key={c} value={c}>{CHAT_COLOR_LABELS[c] ?? c}</option>)}
+            </select>
+          </div>
+        </div>
+      ))}
+      <button className="btn ghost small" disabled={!canAdd} onClick={() => onArr([...value, [Math.round((lastT + 1) * 10) / 10, "Nama", "Pesan baru", "ORG"] as [number, string, string, string]])}>+ Tambah baris</button>
+      {def.hint && <em className="prop-hint">{def.hint}</em>}
+      {err?.map((e, k) => <p key={k} className="valid-err row-err">{stripPropId(e)}</p>)}
+    </div>
+  );
+}
+
+/** Waktu tembakan katapel (war.catapults): tiap baris = pihak, waktu,
+ *  lama tembakan, dan tujuan (kiri-kanan, tinggi, depan-belakang).
+ *  Arti kolom dibaca dari template-perang.html (EV: e[0]=pihak,
+ *  e[1]=waktu mulai, e[2]=lama, e[3..5]=tujuan koin). */
+function ObjCatapults({ def, value, len, orig, err, onArr, onRestore }: {
+  def: PropDef; value: number[][]; len: number; orig?: unknown; err?: string[]; onArr: (v: unknown[]) => void; onRestore?: () => void;
+}) {
+  const changed = orig !== undefined && JSON.stringify(value) !== JSON.stringify(orig);
+  const lastT = value.length ? value[value.length - 1][1] : 0;
+  const canAdd = lastT < len - 0.1;
+  const setCell = (i: number, k: number, v: number) => {
+    const next = value.map((r) => [...r]);
+    next[i][k] = v;
+    onArr(next);
+  };
+  return (
+    <div className={`prop-ctl${err?.length ? " err" : ""}`}>
+      <div className="prop-ctl-h"><span>{def.plain}</span><em>{value.length} tembakan</em>
+        {changed && onRestore && (
+          <button className="btn ghost small" title="Kembalikan ke nilai asli" onClick={onRestore}>↺</button>
+        )}
+      </div>
+      {value.map((row, i) => (
+        <div key={i} className="prop-sub">
+          <div className="prop-ctl-h"><span>Tembakan {i + 1}</span>
+            {value.length > 1 && (
+              <button className="btn ghost small" title="Hapus tembakan ini" onClick={() => onArr(value.filter((_, j) => j !== i))}>Hapus</button>
+            )}
+          </div>
+          <div style={{ display: "flex", gap: 4, marginBottom: 4 }}>
+            <select value={row[0]} aria-label={`Tembakan ${i + 1} pihak`} style={{ flex: 1, minWidth: 0 }}
+              onChange={(e) => setCell(i, 0, parseFloat(e.target.value))}>
+              <option value={0}>Maskot oranye</option>
+              <option value={1}>Maskot biru</option>
+            </select>
+            <label style={{ flex: 1, minWidth: 0, fontSize: 11 }}>Waktu (dtk)
+              <input type="number" step={0.1} min={0} max={len} value={row[1]} aria-label={`Tembakan ${i + 1} waktu`} style={{ width: "100%" }}
+                onChange={(e) => { const n = parseFloat(e.target.value); setCell(i, 1, Number.isNaN(n) ? 0 : n); }} />
+            </label>
+            <label style={{ flex: 1, minWidth: 0, fontSize: 11 }}>Lama (dtk)
+              <input type="number" step={0.1} min={0.1} value={row[2]} aria-label={`Tembakan ${i + 1} lama`} style={{ width: "100%" }}
+                onChange={(e) => { const n = parseFloat(e.target.value); setCell(i, 2, Number.isNaN(n) ? 0.1 : n); }} />
+            </label>
+          </div>
+          <div style={{ display: "flex", gap: 4 }}>
+            {(["Kiri-kanan", "Tinggi", "Depan-belakang"] as const).map((lbl, k) => (
+              <label key={k} style={{ flex: 1, minWidth: 0, fontSize: 11 }}>{lbl}
+                <input type="number" step={0.1} value={row[3 + k]} aria-label={`Tembakan ${i + 1} tujuan ${lbl}`} style={{ width: "100%" }}
+                  onChange={(e) => { const n = parseFloat(e.target.value); setCell(i, 3 + k, Number.isNaN(n) ? 0 : n); }} />
+              </label>
+            ))}
+          </div>
+        </div>
+      ))}
+      <button className="btn ghost small" disabled={!canAdd} onClick={() => onArr([...value, [0, Math.round((lastT + 0.5) * 10) / 10, 0.9, 0, 1, 0]])}>+ Tambah tembakan</button>
+      {def.hint && <em className="prop-hint">{def.hint}</em>}
+      {err?.map((e, k) => <p key={k} className="valid-err row-err">{stripPropId(e)}</p>)}
+    </div>
+  );
+}
+
+/** Warna tombol yang berputar (war.button): 4 warna, tiap warna =
+ *  3 angka 0..1 (merah, hijau, biru) — ditampilkan sebagai pemilih warna. */
+function ObjRgb({ def, value, orig, err, onArr, onRestore }: {
+  def: PropDef; value: number[][]; orig?: unknown; err?: string[]; onArr: (v: unknown[]) => void; onRestore?: () => void;
+}) {
+  const changed = orig !== undefined && JSON.stringify(value) !== JSON.stringify(orig);
+  const toHex = (c: number[]) => "#" + c.map((n) => Math.round(Math.max(0, Math.min(1, n)) * 255).toString(16).padStart(2, "0")).join("");
+  const fromHex = (hex: string) => [0, 1, 2].map((i) => parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16) / 255);
+  return (
+    <div className={`prop-ctl${err?.length ? " err" : ""}`}>
+      <div className="prop-ctl-h"><span>{def.plain}</span><em>{value.length} warna</em>
+        {changed && onRestore && (
+          <button className="btn ghost small" title="Kembalikan ke nilai asli" onClick={onRestore}>↺</button>
+        )}
+      </div>
+      {value.map((c, i) => (
+        <div key={i} className="prop-ctl-h"><span>Warna {i + 1}</span>
+          <span className="prop-color">
+            <input type="color" value={toHex(c)} aria-label={`Warna ${i + 1}`}
+              onChange={(e) => { const next = value.map((r) => [...r]); next[i] = fromHex(e.target.value); onArr(next); }} />
+          </span>
+          <b>{toHex(c)}</b>
+        </div>
+      ))}
+      {def.hint && <em className="prop-hint">{def.hint}</em>}
+      {err?.map((e, k) => <p key={k} className="valid-err row-err">{stripPropId(e)}</p>)}
+    </div>
+  );
+}
+
+/** Tahapan jalan (screen.pipeline): dua daftar — sebelum gagal dan
+ *  sesudah perbaikan — tiap tahap = [mulai, selesai]. */
+function ObjPipeline({ def, value, len, orig, err, onArr, onRestore }: {
+  def: PropDef; value: number[][][]; len: number; orig?: unknown; err?: string[]; onArr: (v: unknown[]) => void; onRestore?: () => void;
+}) {
+  const changed = orig !== undefined && JSON.stringify(value) !== JSON.stringify(orig);
+  const groups = ["Sebelum gagal", "Sesudah perbaikan"] as const;
+  const setCell = (g: number, i: number, k: 0 | 1, v: number) => {
+    const next = value.map((run) => run.map((w) => [...w]));
+    next[g][i][k] = v;
+    onArr(next);
+  };
+  return (
+    <div className={`prop-ctl${err?.length ? " err" : ""}`}>
+      <div className="prop-ctl-h"><span>{def.plain}</span>
+        {changed && onRestore && (
+          <button className="btn ghost small" title="Kembalikan ke nilai asli" onClick={onRestore}>↺</button>
+        )}
+      </div>
+      {groups.map((g, gi) => {
+        const run = value[gi] || [];
+        const lastEnd = run.length ? run[run.length - 1][1] : 0;
+        const canAdd = lastEnd < len - 0.1;
+        return (
+          <div key={gi} className="prop-sub">
+            <div className="prop-ctl-h"><span>{g}</span><em>{run.length} tahap</em></div>
+            {run.map((w, i) => (
+              <div key={i} style={{ display: "flex", gap: 4, alignItems: "center", marginBottom: 4 }}>
+                <span style={{ fontSize: 11 }}>Tahap {i + 1}</span>
+                <label style={{ flex: 1, minWidth: 0, fontSize: 11 }}>Mulai (dtk)
+                  <input type="number" step={0.1} min={0} max={len} value={w[0]} aria-label={`${g} tahap ${i + 1} mulai`} style={{ width: "100%" }}
+                    onChange={(e) => { const n = parseFloat(e.target.value); setCell(gi, i, 0, Number.isNaN(n) ? 0 : n); }} />
+                </label>
+                <label style={{ flex: 1, minWidth: 0, fontSize: 11 }}>Selesai (dtk)
+                  <input type="number" step={0.1} min={0} max={len} value={w[1]} aria-label={`${g} tahap ${i + 1} selesai`} style={{ width: "100%" }}
+                    onChange={(e) => { const n = parseFloat(e.target.value); setCell(gi, i, 1, Number.isNaN(n) ? 0 : n); }} />
+                </label>
+                {run.length > 1 && (
+                  <button className="btn ghost small" title="Hapus tahap ini" onClick={() => { const next = value.map((r) => r.map((x) => [...x])); next[gi] = next[gi].filter((_, j) => j !== i); onArr(next); }}>Hapus</button>
+                )}
+              </div>
+            ))}
+            <button className="btn ghost small" disabled={!canAdd} onClick={() => { const next = value.map((r) => r.map((x) => [...x])); const s0 = Math.round((lastEnd + 0.1) * 10) / 10; next[gi] = [...next[gi], [s0, Math.min(len, Math.round((s0 + 1) * 10) / 10)]]; onArr(next); }}>+ Tambah tahap</button>
+          </div>
+        );
+      })}
+      {def.hint && <em className="prop-hint">{def.hint}</em>}
+      {err?.map((e, k) => <p key={k} className="valid-err row-err">{stripPropId(e)}</p>)}
     </div>
   );
 }
@@ -575,6 +884,9 @@ export default function Studio() {
    *  di allErrors). */
   const [arrayText, setArrayText] = useState<Record<string, string>>({});
   const [arrayErr, setArrayErr] = useState<Record<string, string>>({});
+  /** M4: slider yang ditolak validasi gabungan — nilai yang dicoba +
+   *  pesan penolakan (draft tetap di nilai lama, bukan nilai yang ditolak). */
+  const [sliderRejected, setSliderRejected] = useState<{ id: string; attempted: number; msg: string } | null>(null);
   const [len, setLen] = useState(30);
   const [shots, setShots] = useState<Shot[]>([]);
   const [caps, setCaps] = useState<Cap[]>([]);
@@ -1347,6 +1659,7 @@ export default function Studio() {
       });
       setArrayText(at);
       setArrayErr({});
+      setSliderRejected(null);
       setBase(html);
     },
     [edits, fullEdits, normalize, toast]
@@ -1597,6 +1910,34 @@ export default function Studio() {
     });
     return m;
   }, [propVal, propsAvail]);
+  /** M5: pembicara per-template — Codex hanya bila ada maskot biru
+   *  (caption template satu maskot tidak pernah memakai pembicara 1/2);
+   *  Gemini hanya di Trio. Opsi Codex tetap tampil bila ada edit
+   *  tersimpan yang memakainya, supaya select tidak kosong. */
+  const hasCodex = useMemo(() => propsAvail.some((p) => p.def.obj === "codex"), [propsAvail]);
+  const hasGemini = useMemo(() => propsAvail.some((p) => p.def.obj === "gemini"), [propsAvail]);
+  const showCodexOpt = useMemo(
+    () => hasCodex || draftCaps.some((c) => c[3] === 1),
+    [hasCodex, draftCaps]
+  );
+  /** M2: ringkasan error Objek hanya untuk pesan yang BELUM tampil di
+   *  baris kontrolnya (cek silang "typing jendela #…" / "meeting.end …"
+   *  yang tidak menempel ke satu kontrol). Pesan per-kontrol tidak
+   *  diulang di ringkasan. */
+  const propSummaryErrors = useMemo(() => {
+    const shown = new Set(Object.values(propErrById).flat());
+    return propVal.errors.filter((e) => !shown.has(e));
+  }, [propVal, propErrById]);
+  /** M4: kebutuhan ketik minimum per baris (huruf / 27 huruf per detik)
+   *  untuk menjepit slider jendela ketik. */
+  const typingMinDurs = useMemo(() => {
+    const lines = draftProps["typing.lines"];
+    if (!Array.isArray(lines)) return undefined;
+    return (lines as unknown[]).map((row) => {
+      const chars = Array.isArray(row) ? row.reduce<number>((a, s) => a + String(s).length, 0) : 0;
+      return chars / TYPE_CPS;
+    });
+  }, [draftProps]);
   /** Daftar objek di template ini (tab Objek): nama awam + ikon + warna
    *  dari OBJECTS, hanya yang punya minimal satu pengaturan. */
   const objList = useMemo(() => {
@@ -1694,6 +2035,7 @@ export default function Studio() {
    *  ditampilkan; yang tampil toast error awam. */
   const applyAll = useCallback(() => {
     if (!base || !ready || !anyDirty || allErrors.length) return;
+    setSliderRejected(null);
     if (!saveCurrentFullEdit()) {
       // mount() ikut memanggil setApplied(fields) — kembalikan baseline
       // "diterapkan" ke nilai lama supaya Terapkan tetap aktif + status
@@ -1749,8 +2091,8 @@ export default function Studio() {
   /** Pratinjau langsung saat slider/warna digeser: muat ulang preview
    *  (debounce ~250 mdtk) tanpa mengubah baseline "diterapkan" dan tanpa
    *  menyimpan. Hanya jalan saat tab Objek aktif dan nilai barunya lolos
-   *  validasi — nilai yang ditolak tidak memicu pratinjau (slider
-   *  kembali ke nilai lama + error tampil di barisnya). */
+   *  validasi — nilai yang ditolak tidak memicu pratinjau (M4: slider
+   *  kembali ke nilai lama + pesan penolakan tampil di barisnya). */
   const scheduleLive = useCallback((candidate: PropValues) => {
     if (tab !== "objek") return;
     if (liveTimer.current) clearTimeout(liveTimer.current);
@@ -1765,10 +2107,36 @@ export default function Studio() {
    *  bila jenisnya angka/warna. Teks tidak memicu pratinjau tiap ketik —
    *  ia diterapkan lewat tombol Terapkan. */
   const setPropValue = useCallback((def: PropDef, v: PropValue) => {
-    const candidate = { ...stateRef.current.draftProps, [def.id]: v };
+    const prev = stateRef.current.draftProps;
+    const candidate = { ...prev, [def.id]: v };
+    if (def.kind === "number" && typeof v === "number") {
+      // M4: slider yang ditolak validasi gabungan TIDAK mengubah draft —
+      // slider tetap menampilkan nilai lama + pesan penolakan di barisnya
+      // (sebelumnya nilai yang ditolak tetap tampil). Zona mati by-design
+      // tetap: preview tidak berubah + pesan tampil. Penolakan hanya bila
+      // errornya BARU untuk kontrol ini — bila draft sudah tidak valid,
+      // geseran diizinkan supaya pengguna bisa memperbaiki (mis. papan
+      // skor yang sudah telanjur tidak valid bisa digeser turun).
+      const mentions = (errs: string[]) => errs.some((e) => e.includes(def.id));
+      const prevErrs = [...validateProps(prev, cur.file, len).errors, ...crossCheckProps(prev, len).errors];
+      if (!mentions(prevErrs)) {
+        const candErrs = [...validateProps(candidate, cur.file, len).errors, ...crossCheckProps(candidate, len).errors];
+        const bad = candErrs.filter((e) => e.includes(def.id));
+        if (bad.length) {
+          const oldVal = typeof prev[def.id] === "number" ? (prev[def.id] as number) : 0;
+          setSliderRejected({
+            id: def.id,
+            attempted: v,
+            msg: `Tidak bisa ke ${fmtSliderVal(v, def, cur.file)} — ${stripPropId(bad[0])} Nilai yang dipakai tetap ${fmtSliderVal(oldVal, def, cur.file)}.`,
+          });
+          return;
+        }
+      }
+      if (sliderRejected?.id === def.id) setSliderRejected(null);
+    }
     setDraftProps(candidate);
     if (def.kind === "number" || def.kind === "color") scheduleLive(candidate);
-  }, [scheduleLive]);
+  }, [scheduleLive, sliderRejected, cur.file, len]);
 
   // Pola yang sama di keempat reset (U2): nilai reset ditulis dulu ke
   // stateRef secara sinkron — saveCurrentFullEdit() membaca stateRef,
@@ -1841,6 +2209,7 @@ export default function Studio() {
     });
     setArrayText(at);
     setArrayErr({});
+    setSliderRejected(null);
     stateRef.current.draftProps = dp;
     const ok = saveCurrentFullEdit();
     setTimeout(() => mount(true), 0);
@@ -1880,6 +2249,25 @@ export default function Studio() {
     return true;
   }, [draftProps, cur.file, len, scheduleLive]);
 
+  /** M8: kembalikan SATU kontrol ke nilai asli (tombol ↺ per-kontrol).
+   *  Warna lewat setPropValue; array lewat applyArrayValue (nilai asli
+   *  selalu lolos validasi) + teks mentah disamakan, supaya tombol ↺
+   *  juga berfungsi saat isi array sedang tidak valid (jalan buntu U21:
+   *  Kembalikan se-tab nonaktif karena draft tidak berubah). */
+  const restoreProp = useCallback((def: PropDef) => {
+    const orig = origProps[def.id];
+    if (orig === undefined) return;
+    setSliderRejected((prev) => (prev?.id === def.id ? null : prev));
+    if (def.kind === "color") {
+      setPropValue(def, orig);
+      return;
+    }
+    if (def.kind === "array") {
+      setArrayText((prev) => ({ ...prev, [def.id]: JSON.stringify(orig) }));
+      applyArrayValue(def, orig, true);
+    }
+  }, [origProps, setPropValue, applyArrayValue]);
+
   /** Ubah satu prop array lewat field teks. Nilai yang lolos parse +
    *  validasi masuk draftProps; yang tidak lolos hanya menampilkan error
    *  dan menahan Terapkan — draftProps tidak diubah. */
@@ -1888,8 +2276,10 @@ export default function Studio() {
     let parsed: unknown;
     try {
       parsed = JSON.parse(text);
-    } catch (e) {
-      setArrayErr((prev) => ({ ...prev, [def.id]: `Tulisannya tidak bisa dibaca: ${String((e as Error).message || e)}` }));
+    } catch {
+      // M3: pesan error JSON diterjemahkan ke bahasa awam — teks mesin
+      // V8 ("Unexpected token … is not valid JSON") tidak ditampilkan.
+      setArrayErr((prev) => ({ ...prev, [def.id]: "Tulisannya tidak bisa dibaca — periksa tanda kurung, koma, dan tanda kutipnya, lalu coba lagi." }));
       return;
     }
     applyArrayValue(def, parsed);
@@ -3094,7 +3484,7 @@ export default function Studio() {
                           title={`Shot ${i + 1} · ${fmt(a)} · ${cams}`}
                           onClick={(e) => { e.stopPropagation(); selectClip("shot", i, true); }}
                         >
-                          <span className="clip-txt"><b>{cls === "tiny" ? String(i + 1) : "Shot " + (i + 1)}</b><small>{cams}</small></span>
+                          <span className="clip-txt"><b>{cls === "tiny" ? String(i + 1) : "Shot " + (i + 1)}</b><small>Kam {cams}</small></span>
                           <span className="clip-time">{fmt1(b - a)}</span>
                         </button>
                       );
@@ -3117,7 +3507,7 @@ export default function Studio() {
                       const capPct = pct(Math.max(0.2, x[1] - x[0]));
                       const capPx = tlContentW ? (capPct / 100) * tlContentW : capPct * 7;
                       const tiny = capPx < 30;
-                      const spkAbbr = ["Cl", "Cx", "Br"][x[3] ?? 2] || "•";
+                      const spkAbbr = (hasGemini ? ["Cl", "Cx", "Ge"] : ["Cl", "Cx", "Br"])[x[3] ?? 2] || "•";
                       return (
                       <button
                         key={i}
@@ -3217,6 +3607,11 @@ export default function Studio() {
                           }}
                         />
                       )}
+                      {!fields[k].trim() && (
+                        <em className="prop-hint" style={{ display: "block", marginTop: 4 }}>
+                          Dikosongkan — saat diterapkan dipakai teks asli.
+                        </em>
+                      )}
                     </label>
                   ))}
                   <div className="insp-stick">
@@ -3295,7 +3690,7 @@ export default function Studio() {
                           <div className={`edit-shot${sel?.kind === "shot" && sel.i === i ? " sel" : ""}${shotErrByRow[i] ? " err" : ""}`} onClick={() => selectClip("shot", i, false)}>
                             <div className="edit-shot-h">
                               <span className="k">{pad(i + 1)}</span><b>Shot {i + 1}</b>
-                              <span className="at">{fmt1(end - s[0])}</span>
+                              <span className="at">· {fmt1(end - s[0])}</span>
                             </div>
                             <label className="edit-f">Mulai (detik)
                               <input type="number" step={0.1} min={0} max={len} value={s[0]} aria-label={`Shot ${i + 1} mulai`}
@@ -3317,7 +3712,6 @@ export default function Studio() {
                     }) : <p className="hint" style={{ padding: 6 }}>Belum ada shot.</p>}
                   </div>
                 </details>
-                {shotVal.errors.map((e, k) => <p key={k} className="valid-err">{e}</p>)}
                 {shotVal.warnings.map((w, k) => <p key={k} className="valid-warn">{w}</p>)}
                 <div className="insp-stick">
                 <div className="insp-actions">
@@ -3378,8 +3772,8 @@ export default function Studio() {
                             onClick={(e) => e.stopPropagation()}
                             onChange={(e) => setDraftCaps((prev) => prev.map((c, j) => (j === i ? [c[0], c[1], c[2], +e.target.value] as Cap : c)))}>
                             <option value={0}>Claude</option>
-                            <option value={1}>Codex</option>
-                            <option value={2}>Bersama</option>
+                            {showCodexOpt && <option value={1}>Codex</option>}
+                            <option value={2}>{hasGemini ? "Gemini" : "Bersama"}</option>
                           </select>
                         )}
                       </div>
@@ -3409,7 +3803,6 @@ export default function Studio() {
                     {voFollowNote && <p className={voFollowWarn ? "valid-warn" : "hint"}>{voFollowNote}</p>}
                   </div>
                 </details>
-                {capVal.errors.map((e, k) => <p key={k} className="valid-err">{e}</p>)}
                 {capVal.warnings.map((w, k) => <p key={k} className="valid-warn">{w}</p>)}
                 <div className="insp-stick">
                 <div className="insp-actions">
@@ -3459,39 +3852,56 @@ export default function Studio() {
                         if (def.control === "choice") {
                           return <ObjChoice key={def.id} def={def} value={typeof v === "number" ? v : typeof orig === "number" ? orig : 0} err={err} onNum={(n) => setPropValue(def, n)} />;
                         }
-                        return <ObjSlider key={def.id} def={def} file={cur.file} value={typeof v === "number" ? v : typeof orig === "number" ? orig : 0} orig={orig} err={err} onNum={(n) => setPropValue(def, n)} />;
+                        return <ObjSlider key={def.id} def={def} file={cur.file} value={typeof v === "number" ? v : typeof orig === "number" ? orig : 0} orig={orig} err={err} rejected={sliderRejected?.id === def.id ? sliderRejected.msg : null} onNum={(n) => setPropValue(def, n)} />;
                       }
                       if (def.kind === "color") {
-                        return <ObjColor key={def.id} def={def} value={typeof v === "string" ? v : typeof orig === "string" ? orig : "#d97757"} err={err} onVal={(s) => setPropValue(def, s)} />;
+                        return <ObjColor key={def.id} def={def} value={typeof v === "string" ? v : typeof orig === "string" ? orig : "#d97757"} orig={typeof orig === "string" ? orig : undefined} err={err} onVal={(s) => setPropValue(def, s)} onRestore={() => restoreProp(def)} />;
                       }
                       if (def.kind === "text") {
                         return <ObjText key={def.id} def={def} value={typeof v === "string" ? v : typeof orig === "string" ? orig : ""} err={err} onVal={(s) => setPropValue(def, s)} />;
                       }
                       if (def.control === "scores" && Array.isArray(v)) {
-                        return <ObjScores key={def.id} def={def} value={v as number[]} err={arrErr} onArr={(nv) => applyArrayValue(def, nv, true)} />;
+                        return <ObjScores key={def.id} def={def} value={v as number[]} orig={orig} err={arrErr} onArr={(nv) => applyArrayValue(def, nv, true)} onRestore={() => restoreProp(def)} />;
                       }
                       if (def.control === "curve" && Array.isArray(v)) {
-                        return <ObjCurve key={def.id} def={def} value={v as number[][]} len={len} err={arrErr} onArr={(nv) => applyArrayValue(def, nv, true)} />;
+                        return <ObjCurve key={def.id} def={def} value={v as number[][]} len={len} orig={orig} err={arrErr} onArr={(nv) => applyArrayValue(def, nv, true)} onRestore={() => restoreProp(def)} />;
                       }
                       if (def.control === "windows" && Array.isArray(v)) {
-                        return <ObjWindows key={def.id} def={def} value={v as number[][]} len={len} err={arrErr} onArr={(nv) => applyArrayValue(def, nv, true)} />;
+                        return <ObjWindows key={def.id} def={def} value={v as number[][]} len={len} err={arrErr} minDur={typingMinDurs} orig={orig} onArr={(nv) => applyArrayValue(def, nv, true)} onRestore={() => restoreProp(def)} />;
                       }
                       if (def.control === "spawns" && Array.isArray(v)) {
-                        return <ObjSpawns key={def.id} def={def} value={v as number[][]} len={len} err={arrErr} onArr={(nv) => applyArrayValue(def, nv, true)} />;
+                        return <ObjSpawns key={def.id} def={def} value={v as number[][]} len={len} orig={orig} err={arrErr} onArr={(nv) => applyArrayValue(def, nv, true)} onRestore={() => restoreProp(def)} />;
                       }
                       if (def.control === "lines" && Array.isArray(v)) {
-                        return <ObjLines key={def.id} def={def} value={v as string[]} err={arrErr} onArr={(nv) => applyArrayValue(def, nv)} />;
+                        return <ObjLines key={def.id} def={def} value={v as string[]} orig={orig} err={arrErr} onArr={(nv) => applyArrayValue(def, nv)} onRestore={() => restoreProp(def)} />;
+                      }
+                      if (def.control === "tlines" && Array.isArray(v)) {
+                        return <ObjTypingLines key={def.id} def={def} value={v as string[][]} orig={orig} err={arrErr} onArr={(nv) => applyArrayValue(def, nv, true)} onRestore={() => restoreProp(def)} />;
+                      }
+                      if (def.control === "chat" && Array.isArray(v)) {
+                        return <ObjChat key={def.id} def={def} value={v as [number, string, string, string][]} len={len} orig={orig} err={arrErr} onArr={(nv) => applyArrayValue(def, nv, true)} onRestore={() => restoreProp(def)} />;
+                      }
+                      if (def.control === "catapults" && Array.isArray(v)) {
+                        return <ObjCatapults key={def.id} def={def} value={v as number[][]} len={len} orig={orig} err={arrErr} onArr={(nv) => applyArrayValue(def, nv, true)} onRestore={() => restoreProp(def)} />;
+                      }
+                      if (def.control === "rgb" && Array.isArray(v)) {
+                        return <ObjRgb key={def.id} def={def} value={v as number[][]} orig={orig} err={arrErr} onArr={(nv) => applyArrayValue(def, nv, true)} onRestore={() => restoreProp(def)} />;
+                      }
+                      if (def.control === "pipeline" && Array.isArray(v)) {
+                        return <ObjPipeline key={def.id} def={def} value={v as number[][][]} len={len} orig={orig} err={arrErr} onArr={(nv) => applyArrayValue(def, nv, true)} onRestore={() => restoreProp(def)} />;
                       }
                       return (
                         <ObjJson key={def.id} def={def}
                           text={arrayText[def.id] ?? (v !== undefined ? JSON.stringify(v) : "")}
+                          orig={orig}
                           err={arrayErr[def.id]}
-                          onText={(t) => handleArrayPropChange(def, t)} />
+                          onText={(t) => handleArrayPropChange(def, t)}
+                          onRestore={() => restoreProp(def)} />
                       );
                     })}
                   </div>
                 )}
-                {propVal.errors.map((e, k) => {
+                {propSummaryErrors.map((e, k) => {
                   const mt = /^([\w.]+):/.exec(e);
                   const d = mt ? propsAvail.find((p) => p.def.id === mt[1])?.def : undefined;
                   return <p key={k} className="valid-err">{d ? `${d.plain}: ${stripPropId(e)}` : stripPropId(e)}</p>;
