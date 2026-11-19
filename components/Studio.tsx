@@ -1558,47 +1558,75 @@ export default function Studio() {
     if (def.kind === "number" || def.kind === "color") scheduleLive(candidate);
   }, [scheduleLive]);
 
+  // Pola yang sama di keempat reset (U2): nilai reset ditulis dulu ke
+  // stateRef secara sinkron — saveCurrentFullEdit() membaca stateRef,
+  // sedangkan setState React baru terlihat sesudah re-render, jadi
+  // pemanggilan langsung tanpa ini akan menyimpan nilai LAMA. Sesudah
+  // itu saveCurrentFullEdit() menghapus entri template ini dari
+  // ss.edits.v1 (draft == asli -> fe kosong), jadi reset bertahan
+  // sesudah reload. Baseline "diterapkan" ikut disamakan ke asli supaya
+  // Terapkan kembali disabled + status "Tidak ada perubahan" di sesi itu
+  // (sebelumnya reset caption/shot/objek membiarkan Terapkan aktif — C4).
   const resetText = useCallback(() => {
     setFields(def);
+    setApplied(def);
+    stateRef.current.fields = def;
     setEdits((prev) => {
       const next = { ...prev };
       delete next[cur.file];
       return next;
     });
+    saveCurrentFullEdit();
     if (base) {
       // mount memakai fields dari stateRef — tunda satu tick agar fields baru kebaca
       setTimeout(() => mount(true), 0);
     }
     toast("Teks dikembalikan ke asli");
-  }, [def, cur, base, mount, toast]);
+  }, [def, cur, base, mount, toast, saveCurrentFullEdit]);
 
   const resetCaps = useCallback(() => {
     if (!origCaps) return;
-    setDraftCaps(origCaps.map((c) => [...c] as Cap));
-    setDraftVO(origVO ? [...origVO] : null);
+    const caps = origCaps.map((c) => [...c] as Cap);
+    const vo = origVO ? [...origVO] : null;
+    setDraftCaps(caps);
+    setDraftVO(vo);
     setVoTouched(false);
+    setAppliedCaps(caps.map((c) => [...c] as Cap));
+    setAppliedVO(vo ? [...vo] : null);
+    stateRef.current.draftCaps = caps;
+    stateRef.current.draftVO = vo;
+    stateRef.current.voTouched = false;
+    saveCurrentFullEdit();
     setTimeout(() => mount(true), 0);
     toast("Caption dikembalikan ke asli");
-  }, [origCaps, origVO, mount, toast]);
+  }, [origCaps, origVO, mount, toast, saveCurrentFullEdit]);
 
   const resetShots = useCallback(() => {
     if (!origShots) return;
-    setDraftShots(origShots.map((x) => [x[0], [...x[1]], [...x[2]]] as Shot));
+    const shots = origShots.map((x) => [x[0], [...x[1]], [...x[2]]] as Shot);
+    setDraftShots(shots);
+    setAppliedShots(shots.map((x) => [x[0], [...x[1]], [...x[2]]] as Shot));
+    stateRef.current.draftShots = shots;
+    saveCurrentFullEdit();
     setTimeout(() => mount(true), 0);
     toast("Shot dikembalikan ke asli");
-  }, [origShots, mount, toast]);
+  }, [origShots, mount, toast, saveCurrentFullEdit]);
 
   const resetProps = useCallback(() => {
-    setDraftProps({ ...origProps });
+    const dp = { ...origProps };
+    setDraftProps(dp);
+    setAppliedProps({ ...dp });
     const at: Record<string, string> = {};
     propsAvail.forEach(({ def }) => {
       if (def.kind === "array" && origProps[def.id] !== undefined) at[def.id] = JSON.stringify(origProps[def.id]);
     });
     setArrayText(at);
     setArrayErr({});
+    stateRef.current.draftProps = dp;
+    saveCurrentFullEdit();
     setTimeout(() => mount(true), 0);
     toast("Pengaturan objek dikembalikan ke asli");
-  }, [origProps, mount, toast, propsAvail]);
+  }, [origProps, mount, toast, propsAvail, saveCurrentFullEdit]);
 
   /** Terapkan nilai baru untuk satu prop array (sudah ter-parse).
    *  Nilai yang lolos validasi (validator per-def + cek silang WIN/TL /
