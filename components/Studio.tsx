@@ -2802,7 +2802,7 @@ export default function Studio() {
         <section className="panel viewer" aria-label="Composition viewer">
           <div className="panel-h">
             <span className="panel-t"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4V4zm2 2v12h12V6H6z" /></svg><span>Comp 1 · {cur.label}</span></span>
-            <span className="chip">1080×1920 · 60 fps</span>
+            <span className="chip">1080×1920<span className="chip-fps"> · 60 fps</span></span>
             {tab === "objek" && activeObj && (
               <span className="chip obj-chip" title={activeObj.desc}>
                 <span aria-hidden="true">{activeObj.icon}</span> Sedang mengedit: {activeObj.name}
@@ -3016,7 +3016,7 @@ export default function Studio() {
                           data-kind="shot"
                           data-i={i}
                           style={{ left: pct(a) + "%", width: wPct + "%", ["--h" as string]: (i * 47 + 205) % 360 }}
-                          title={`Shot ${i + 1} · ${fmt(a)}`}
+                          title={`Shot ${i + 1} · ${fmt(a)} · ${cams}`}
                           onClick={(e) => { e.stopPropagation(); selectClip("shot", i, true); }}
                         >
                           <span className="clip-txt"><b>{cls === "tiny" ? String(i + 1) : "Shot " + (i + 1)}</b><small>{cams}</small></span>
@@ -3053,7 +3053,7 @@ export default function Studio() {
                         title={`${x[2]} · ${fmt(x[0])}`}
                         onClick={(e) => { e.stopPropagation(); selectClip("cap", i, true); }}
                       >
-                        <span className="clip-txt">{tiny ? (hasSpeaker ? spkAbbr : "") : x[2]}</span>
+                        <span className="clip-txt">{tiny ? (hasSpeaker ? spkAbbr : "") : <span className="cap-txt">{x[2]}</span>}</span>
                       </button>
                       );
                     }) : <span className="tl-empty">Tidak ada caption di template ini.</span>}

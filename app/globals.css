@@ -5,7 +5,9 @@
 :root{
   --bg:#0d0e10; --panel:#16181b; --panel-2:#1b1d21; --panel-3:#23262b;
   --line:#2a2d33; --line-2:#353941; --line-soft:#23262b;
-  --ink:#eceef2; --ink-2:#c7cad1; --dim:#8b909a; --faint:#5d626b;
+  /* G9/U15: --faint gelap #5d626b (3,13:1 di statusbar) TIDAK lolos AA.
+     #83888f = 5,37:1 di statusbar #0e0f11, ≥4,9:1 di panel/input/bg. */
+  --ink:#eceef2; --ink-2:#c7cad1; --dim:#8b909a; --faint:#83888f;
   --accent:#4c8dff; --accent-2:#8db3ff; --accent-dim:#1b3157; --accent-glow:rgba(76,141,255,.3);
   --good:#4cd6a0; --warn:#ffc857; --bad:#ff6b6b;
   --spk1:#f08a4b; --spk2:#5b8dff; --spk3:#9aa0aa;
@@ -20,7 +22,11 @@
 :root[data-theme="light"]{
   --bg:#e7e8ea; --panel:#f7f7f8; --panel-2:#fff; --panel-3:#eff0f2;
   --line:#d5d7db; --line-2:#c3c6cc; --line-soft:#e4e5e8;
-  --ink:#1a1c20; --ink-2:#3f434b; --dim:#6b707a; --faint:#9ba0a9;
+  /* G9/U15: --faint terang #9ba0a9 (2,39:1) TIDAK lolos AA; #64686f =
+     5,09:1 di statusbar #f3f4f6, ≥4,9:1 di panel/putih. --dim ikut
+     digelapkan (#6b707a→#5d626b) supaya hierarki dim>faint tetap benar
+     (--dim lama 4,36:1 di panel-3, kini 5,38:1; --dim gelap tak diubah). */
+  --ink:#1a1c20; --ink-2:#3f434b; --dim:#5d626b; --faint:#64686f;
   --accent:#2563eb; --accent-2:#1d4ed8; --accent-dim:#dbe7ff; --accent-glow:rgba(37,99,235,.22);
   --good:#0f9d67; --warn:#a16207; --bad:#dc2626;
   --spk1:#c2621e; --spk2:#2563eb; --spk3:#6b7280;
@@ -137,7 +143,12 @@ kbd{font:600 11px/1 var(--mono);background:var(--panel-3);border:1px solid var(-
 .stage{position:relative;background:#000;border-radius:4px;outline:1px solid var(--line-2);overflow:hidden;isolation:isolate;flex:0 0 auto;container-type:inline-size}
 .stage iframe{position:absolute;inset:0;width:100%;height:100%;border:0;display:block;opacity:0;transition:opacity .3s var(--ease);background:#000}
 .stage.ready iframe{opacity:1}
-.stage-hud{position:absolute;top:6px;left:6px;right:6px;display:flex;justify-content:space-between;gap:8px;z-index:4;pointer-events:none;font:500 9.5px/1 var(--mono);color:rgba(255,255,255,.55);}
+/* G9/U14: kedua chip dikelompokkan di KIRI ATAS (bukan space-between).
+   #wm watermark template ada di KANAN ATAS di semua 12 template
+   (top:3-4u, right:3-4u) — chip kanan "1080×1920" menutupinya 322–815px²
+   di 6 lebar; sudut kiri atas kosong (judul template terpusat di top:20%).
+   Info resolusi tetap di tempat yang sama (atas frame), kini 0px² overlap. */
+.stage-hud{position:absolute;top:6px;left:6px;right:6px;display:flex;justify-content:flex-start;gap:8px;z-index:4;pointer-events:none;font:500 9.5px/1 var(--mono);color:rgba(255,255,255,.55);}
 .stage-hud span{background:rgba(0,0,0,.34);border:1px solid rgba(255,255,255,.1);border-radius:3px;padding:3px 5px;}
 .guides{position:absolute;inset:0;z-index:3;pointer-events:none;display:none}
 .guides.on{display:block}
@@ -225,7 +236,7 @@ kbd{font:600 11px/1 var(--mono);background:var(--panel-3);border:1px solid var(-
 :root[data-theme="light"] .trk-badge.t1{background:#fbead6;color:#a35311}
 :root[data-theme="light"] .trk-badge.a1{background:#d9f3e6;color:#0f7a52}
 .trk-name{flex:1;font-size:11px;font-weight:600;color:var(--dim);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.trk-mini{width:16px;height:16px;border-radius:3px;display:grid;place-items:center;color:var(--faint);flex:0 0 auto;opacity:.65}
+.trk-mini{position:relative;width:16px;height:16px;border-radius:3px;display:grid;place-items:center;color:var(--faint);flex:0 0 auto;opacity:.65}
 .trk-mini:hover{background:var(--panel-3);color:var(--ink);opacity:1}
 .trk-mini[aria-pressed="true"]{color:var(--accent-2);opacity:1}
 .trk-mini svg{width:10px;height:10px}
@@ -261,6 +272,10 @@ kbd{font:600 11px/1 var(--mono);background:var(--panel-3);border:1px solid var(-
 .clip.cap{background:#252932;border-color:#3b414c;color:#dfe3ea;background:color-mix(in srgb,var(--c,#9aa0aa) 30%,#14161a);border-color:color-mix(in srgb,var(--c,#9aa0aa) 55%,#25282e)}
 .clip.cap .clip-txt{flex-direction:row;align-items:center;gap:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:10.5px;font-weight:500}
 .clip.cap .clip-txt::before{content:"";width:4px;height:4px;border-radius:50%;background:var(--c,#9aa0aa);flex:0 0 auto}
+/* G9/U17: teks caption adalah node teks mentah di dalam flex — ellipsis di
+   .clip-txt tidak menjalar ke anonymous flex item, jadi label terpotong
+   tengah kata tanpa "…". Dibungkus .cap-txt supaya ellipsis benar jalan. */
+.clip.cap .clip-txt .cap-txt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* Caption ringkas: <30px hanya singkatan pembicara (titik disembunyikan,
    teks mustahil dibaca); 30-70px padding/font dipadatkan supaya kata
    pertama muat lebih banyak. Tooltip title tetap teks lengkap. */
@@ -432,7 +447,10 @@ dialog[open]{animation:pop .18s var(--ease)}
 .tour-dots i.on{background:var(--accent);width:14px;border-radius:99px}
 .tour-skip{font-size:11px;color:var(--dim);font-weight:600;padding:5px 7px;border-radius:4px}
 .tour-skip:hover{color:var(--ink);background:var(--panel-3)}
-.tour .btn.small{height:25px}
+/* G9/U16: tombol tur mengikuti .btn.small (24px di mouse, 44px di sentuh).
+   Aturan lama .tour .btn.small{height:25px} mengalahkan aturan coarse
+   (spesifisitas 0,3,0 > 0,2,0) sehingga tombol tur tetap 25px bahkan di
+   tablet nyata — itu sebabnya audit mengukur 25px di 390px. */
 .tour-again{margin-top:2px}
 .tour .btn,.tour-skip{white-space:nowrap;flex:0 0 auto}
 .toast{position:fixed;left:50%;bottom:34px;transform:translate(-50%,10px);background:var(--ink);color:var(--bg);border-radius:5px;padding:7px 13px;font-size:11.5px;font-weight:600;opacity:0;pointer-events:none;transition:opacity .18s,transform .22s var(--ease);z-index:120;max-width:calc(100vw - 24px);text-align:center}
@@ -517,7 +535,13 @@ dialog[open]{animation:pop .18s var(--ease)}
   .transport{height:40px;gap:3px}
   .t-center{justify-content:flex-start}
   .t-right .tc{display:none}
-  .tc em,.tc #tcTot{display:none}
+  /* G9/U19: pemisah "/" timecode HARUS tampil (margin kecil 2px, bukan 4px
+     desktop). Aturan lama display:none membuat waktu berjalan & total
+     menempel ("00:00:00:0000:00:30:00") di portrait 601–900px. Di ≤600px
+     .t-center disembunyikan total (aturan di bawah), jadi "/" ini tidak
+     pernah muncul di 390px — layout transport HP tidak tersentuh.
+     (#tcTot di aturan lama sudah mati: tidak ada elemen itu di markup.) */
+  .tc em{display:inline;margin:0 2px}
   .tc{font-size:11px}
   .tl-body{grid-template-columns:140px minmax(0,1fr)}
   .trk-head{padding:0 3px 0 5px;gap:3px}
@@ -530,6 +554,16 @@ dialog[open]{animation:pop .18s var(--ease)}
   .tour .tour-foot .btn.small{padding:6px 14px}
 }
 @media (max-width:600px){
+  /* G9/U18: header viewer di layar sempit — judul boleh menyusut (ellipsis),
+     chip resolusi memendek jadi "1080×1920" saja (bagian "· 60 fps"
+     disembunyikan; info fps tetap ada di statusbar saat ≥601px), dan chip
+     objek dibatasi. Tanpa ini .viewer scrollW 475 vs clientW 380 di 390px
+     (Trio) dan ketiga tombol header jatuh di luar viewport. */
+  .viewer .panel-h{gap:4px}
+  .viewer .panel-t{min-width:0}
+  .viewer .panel-t>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .viewer .panel-h .chip .chip-fps{display:none}
+  .viewer .obj-chip{max-width:150px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .topbar{gap:3px;padding:0 5px}
   .brand b{display:none}
   .brand{padding-right:0}
@@ -571,22 +605,32 @@ dialog[open]{animation:pop .18s var(--ease)}
   .workspace{grid-template-rows:max(250px,52dvh) auto auto}
 }
 @media (pointer:coarse){
-  .tb-icon{width:40px;height:40px}
-  .ph-icon{width:36px;height:36px}
-  .tbtn{height:38px;min-width:38px}
-  .tool{height:34px;min-width:34px}
-  .btn{height:38px}.btn.small{height:34px}
-  .play{width:42px;height:42px}
-  .tab{height:36px}
+  /* G9/U16: target sentuh ≥44px di SEMUA lebar sentuh (bukan hanya ≤1180px
+     seperti sebelumnya — di 1440px sentuh tombol tetap 34–42px). Hanya
+     berlaku untuk pointer:coarse; desktop mouse (pointer:fine) tidak
+     berubah sama sekali, jadi tampilan desktop tidak membengkak. Panel-h /
+     mine-h / dlg-h ikut ditinggikan supaya tombol 44px muat di >1180px. */
+  .tb-icon{width:44px;height:44px}
+  .ph-icon{width:44px;height:44px}
+  .panel-h{height:44px}
+  .mine-h{height:48px}
+  .dlg-h{height:48px}
+  .tbtn{height:44px;min-width:44px}
+  .tool{height:44px;min-width:44px}
+  .btn{height:44px}.btn.small{height:44px}
+  .play{width:44px;height:44px}
+  .tab{height:44px}
   .tpl{padding:7px 8px}
   .trk-mini{width:26px;height:26px}
-  .mi{height:40px}
+  .mi{height:44px}
+  .menubar button{height:44px;min-width:44px}
   .transport{height:56px}
-  .vzoom{height:34px}
-  .search input{height:40px;font-size:14px}
+  .vzoom{height:44px}
+  .search input{height:44px;font-size:14px}
   .field input,.field textarea{font-size:14px;padding:10px 11px}
-  .row{padding:9px 8px}
-  .cmd-i{padding:10px 8px}
+  .field input{height:44px}
+  .row{padding:9px 8px;min-height:44px}
+  .cmd-i{padding:10px 8px;min-height:44px}
 }
 @media (pointer:coarse) and (max-width:1180px){
   /* Target sentuh ≥44px (panduan Apple/Material) di layar sentuh.
@@ -754,4 +798,37 @@ dialog { z-index: 80; }
   .app.sheet-mode .timeline.tl-collapsed .tl-tools .tool-sep{display:none}
   .app.sheet-mode .tl-fold{display:inline-flex;align-items:center;gap:2px;height:44px;padding:0 8px;font-size:12px;font-weight:600;color:var(--ink-2);white-space:nowrap}
   .app.sheet-mode.sheet-closed .tl-fold{display:none}
+}
+
+/* ---------- G9/U16 — sisa target sentuh (blok ini di AKHIR file supaya
+   menang atas aturan dasar yang didefinisikan sesudah blok coarse di atas,
+   mis. .sel-actions .btn{height:22px}). Semua hanya pointer:coarse. ---- */
+@media (pointer:coarse){
+  /* Tombol aksi kecil di kartu pilihan (22px) — tinggi visual 22px tetap,
+     tapi target sentuh 44px. */
+  .sel-actions .btn{height:44px}
+  /* Pilihan fps di dialog Ekspor (24px) + pilihan objek (26px). */
+  .seg button{min-height:44px}
+  .choice{min-height:44px}
+  /* "Lewati" tur (26px) + baris daftar Video Buatan Saya + baris caption. */
+  .tour-skip{min-height:44px;min-width:44px}
+  .mine-open{min-height:44px}
+  .edit-cap{min-height:44px}
+  /* .trk-mini: visual TETAP 16px (desktop) / 26px (sentuh) karena kepala
+     track audio hanya 32–36px — tombol 44px visual tidak muat tanpa
+     menggelembungkan timeline. Area ketuk tak terlihat: ::after 44×44px
+     (inset -9px dari 26px). Supaya ::after dua mini bersebelahan tidak
+     saling menelan (zona tumpang tindih = ketuk tombol yang salah),
+     jarak antar-mini dilebarkan (4px→18px) dan padding kanan head
+     ditambah (5px→14px) supaya ::after mini kanan tidak terpotong tepi
+     panel. Di baris audio area efektif vertikal ~40px (terpotong 4px
+     oleh tepi bawah kolom head) — sisa yang didokumentasikan. */
+  .trk-head{padding-right:14px}
+  .trk-mini + .trk-mini{margin-left:14px}
+  .trk-mini::after{content:"";position:absolute;inset:-9px}
+}
+@media (pointer:coarse) and (max-width:900px){
+  /* Tombol Ekspor topbar jadi ikon saja di ≤900px (width:28px) — di sentuh
+     lebarkan ke 44px supaya lebarnya juga memenuhi target. */
+  .tb-actions .btn.primary{width:44px}
 }
