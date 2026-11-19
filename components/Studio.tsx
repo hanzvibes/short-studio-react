@@ -77,6 +77,8 @@ interface MyVideo {
   vo?: string[];
   props?: PropValues;
   createdAt: number;
+  /** Terakhir diperbarui lewat simpan-ulang (U4); kosong = belum pernah diperbarui. */
+  updatedAt?: number;
 }
 
 const EDITS_KEY = "ss.edits.v1";
@@ -1700,25 +1702,46 @@ export default function Studio() {
     [capsChanged, shotsChanged, propsChanged, voTouched, draftVO]
   );
 
+  // Entri "Video Buatan Saya" yang sedang dibuka (U4): bila ada, dialog
+  // simpan beralih ke mode "Perbarui video ini" dan confirmSaveMine
+  // memperbarui entri itu, bukan membuat duplikat.
+  const activeMineEntry = activeMineId ? mine.find((m) => m.id === activeMineId) ?? null : null;
+
   // ---------- Video Buatan Saya ----------
+  // U4: simpan-ulang MEMPERBARUI entri yang sedang dibuka (activeMineId),
+  // bukan membuat duplikat. Keputusan UX (lihat verification/fix-audit500-g4-u4.md):
+  // - Buka entri tersimpan -> edit -> Simpan = perbarui entri itu (id tetap,
+  //   isi ikut yang terbaru, posisi di daftar tetap, createdAt tetap,
+  //   updatedAt dicatat). Label ikut NAMA ENTRI LAMA (prefill dialog), bukan
+  //   judul yang sedang diedit — supaya simpan-ulang tidak diam-diam
+  //   mengganti nama; rename hanya bila pengguna mengubah kolom nama.
+  //   Toast menyebut "diperbarui", bukan "disimpan".
+  // - Buka TEMPLATE asli -> Simpan = tetap buat entri baru (activeMineId null).
+  // - Simpan tanpa edit dari entri tersimpan = tetap perbarui (tanpa duplikat);
+  //   tidak ada yang berubah selain updatedAt — aman dan konsisten.
+  // - Ganti nama label di dialog = perbarui entri yang sama dengan label baru.
   const confirmSaveMine = useCallback(() => {
     const label = saveMineLabel.trim() || fields.title.trim() || cur.label;
     const n = normalize(fields);
+    const existing = activeMineId ? mine.find((m) => m.id === activeMineId) : undefined;
     const entry: MyVideo = {
-      id: "mine-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      id: existing ? existing.id : "mine-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
       label,
       file: cur.file,
       title: n.title,
       sub: n.sub,
       end: n.end,
-      createdAt: Date.now(),
+      createdAt: existing ? existing.createdAt : Date.now(),
     };
+    if (existing) entry.updatedAt = Date.now();
     if (capsChanged) entry.caps = draftCaps;
     if (shotsChanged) entry.shots = draftShots;
     if (voTouched && draftVO) entry.vo = draftVO;
     if (propsChanged) entry.props = { ...draftProps };
     setMine((prev) => {
-      const next = [entry, ...prev];
+      const next = existing
+        ? prev.map((m) => (m.id === existing.id ? entry : m))
+        : [entry, ...prev];
       try {
         localStorage.setItem(MINE_KEY, JSON.stringify(next));
       } catch { /* private mode */ }
@@ -1726,8 +1749,8 @@ export default function Studio() {
     });
     setActiveMineId(entry.id);
     setSaveMineOpen(false);
-    toast(`"${label}" disimpan di Video Buatan Saya`);
-    // Di layar kecil drawer tertutup — buka supaya video baru terlihat.
+    toast(existing ? `"${label}" diperbarui di Video Buatan Saya` : `"${label}" disimpan di Video Buatan Saya`);
+    // Di layar kecil drawer tertutup — buka supaya video (baru / diperbarui) terlihat.
     if (window.innerWidth <= 1180) {
       closeSheet();
       setDrawerOpen(true);
@@ -1735,7 +1758,7 @@ export default function Studio() {
         document.querySelector(".mine-list .mine-item")?.scrollIntoView({ block: "nearest" });
       }, 320);
     }
-  }, [saveMineLabel, fields, cur, normalize, capsChanged, draftCaps, shotsChanged, draftShots, voTouched, draftVO, propsChanged, draftProps, toast, closeSheet]);
+  }, [saveMineLabel, fields, cur, normalize, capsChanged, draftCaps, shotsChanged, draftShots, voTouched, draftVO, propsChanged, draftProps, toast, closeSheet, activeMineId, mine]);
 
   const openMine = useCallback(
     (entry: MyVideo) => {
@@ -2593,7 +2616,7 @@ export default function Studio() {
               <span>Video Buatan Saya</span>
               <span className="badge">{mine.length}</span>
               <span className="grow" />
-              <button className="btn ghost small" title="Simpan video saat ini sebagai video baru" onClick={() => { setSaveMineLabel(fields.title.trim() || cur.label); setSaveMineOpen(true); }}>+ Simpan</button>
+              <button className="btn ghost small" title={activeMineEntry ? `Perbarui "${activeMineEntry.label}" di Video Buatan Saya` : "Simpan video saat ini sebagai video baru"} onClick={() => { setSaveMineLabel(activeMineEntry ? activeMineEntry.label : (fields.title.trim() || cur.label)); setSaveMineOpen(true); }}>{activeMineEntry ? "Perbarui" : "+ Simpan"}</button>
             </div>
             {mine.length === 0 ? (
               <p className="hint" style={{ padding: "6px 9px" }}>Belum ada. Edit template apa pun lalu simpan sebagai video baru — template asli tidak pernah diubah.</p>
@@ -2603,7 +2626,7 @@ export default function Studio() {
                   <div key={m.id} className={`mine-item${activeMineId === m.id ? " on" : ""}`}>
                     <button className="mine-open" onClick={() => openMine(m)} title={`Buka ${m.label} (dari ${m.file})`}>
                       <b>{m.label}</b>
-                      <small>dari {m.file.replace(/^template-?/, "").replace(/\.html$/, "") || "versus"} · {new Date(m.createdAt).toLocaleDateString("id-ID", { day: "numeric", month: "short" })}</small>
+                      <small>dari {m.file.replace(/^template-?/, "").replace(/\.html$/, "") || "versus"} · {new Date(m.updatedAt ?? m.createdAt).toLocaleDateString("id-ID", { day: "numeric", month: "short" })}{m.updatedAt ? " (diperbarui)" : ""}</small>
                     </button>
                     <button className="btn ghost small" title="Unduh sebagai file .html" onClick={() => downloadMine(m)}>Unduh .html</button>
                     <button className="btn ghost small" title="Hapus video ini" onClick={() => deleteMine(m.id)}>Hapus</button>
@@ -2973,9 +2996,9 @@ export default function Studio() {
                     </button>
                   </div>
                   <div className="insp-actions">
-                    <button className="btn ghost" disabled={!ready} title="Simpan edit saat ini sebagai video baru (template asli tidak diubah)" onClick={() => { setSaveMineLabel(fields.title.trim() || cur.label); setSaveMineOpen(true); }}>
+                    <button className="btn ghost" disabled={!ready} title={activeMineEntry ? "Perbarui video ini di Video Buatan Saya (template asli tidak diubah)" : "Simpan edit saat ini sebagai video baru (template asli tidak diubah)"} onClick={() => { setSaveMineLabel(activeMineEntry ? activeMineEntry.label : (fields.title.trim() || cur.label)); setSaveMineOpen(true); }}>
                       <svg viewBox="0 0 24 24"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z" /></svg>
-                      Simpan sebagai video baru
+                      {activeMineEntry ? "Perbarui video ini" : "Simpan sebagai video baru"}
                     </button>
                   </div>
                   <p className="hint apply-state" role="status">{applyStateText}</p>
@@ -3309,7 +3332,7 @@ export default function Studio() {
 
       {saveMineOpen && (
         <dialog open className="dlg" aria-labelledby="mineH" onClick={(e) => { if (e.target === e.currentTarget) setSaveMineOpen(false); }}>
-          <div className="dlg-h"><h2 id="mineH">Simpan sebagai video baru</h2><button className="tb-icon" data-close aria-label="Tutup" onClick={() => setSaveMineOpen(false)}><svg viewBox="0 0 24 24"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z" /></svg></button></div>
+          <div className="dlg-h"><h2 id="mineH">{activeMineEntry ? "Perbarui video ini" : "Simpan sebagai video baru"}</h2><button className="tb-icon" data-close aria-label="Tutup" onClick={() => setSaveMineOpen(false)}><svg viewBox="0 0 24 24"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z" /></svg></button></div>
           <div className="dlg-b">
             <label className="field">
               <span>Nama video</span>
@@ -3317,9 +3340,13 @@ export default function Studio() {
                 onChange={(e) => setSaveMineLabel(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); confirmSaveMine(); } }} />
             </label>
-            <p className="note">Disimpan di seksi “Video Buatan Saya” (dari {cur.file}) beserta semua edit saat ini — teks, caption, shot, suara, dan pengaturan objek. Template asli tidak diubah; entri bisa dibuka, diedit lagi, dan diunduh sebagai file .html.</p>
+            {activeMineEntry ? (
+              <p className="note">Memperbarui entri “{activeMineEntry.label}” di Video Buatan Saya — isi ikut yang terbaru, <b>tidak membuat duplikat</b>. Nama tetap “{activeMineEntry.label}” kecuali diubah di kolom di atas. Template asli tidak diubah.</p>
+            ) : (
+              <p className="note">Disimpan di seksi “Video Buatan Saya” (dari {cur.file}) beserta semua edit saat ini — teks, caption, shot, suara, dan pengaturan objek. Template asli tidak diubah; entri bisa dibuka, diedit lagi, dan diunduh sebagai file .html.</p>
+            )}
             <div className="insp-actions">
-              <button className="btn primary" onClick={confirmSaveMine}>Simpan video</button>
+              <button className="btn primary" onClick={confirmSaveMine}>{activeMineEntry ? "Perbarui video" : "Simpan video"}</button>
               <button className="btn ghost" onClick={() => setSaveMineOpen(false)}>Batal</button>
             </div>
           </div>
