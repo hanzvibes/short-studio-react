@@ -84,6 +84,36 @@ interface MyVideo {
 const EDITS_KEY = "ss.edits.v1";
 const MINE_KEY = "ss.mine.v1";
 
+/** Tulis satu kunci localStorage; kembalikan false bila gagal (penyimpanan
+ *  penuh, mode privat, …). Pemanggil KRITIS (edit, Video Buatan Saya)
+ *  HARUS memakai hasilnya — kegagalan tidak boleh ditelan diam-diam
+ *  lalu diklaim sukses (U5: toast "diterapkan"/"disimpan" palsu).
+ *  Kunci NON-KRITIS (tema, drawer, template terakhir, zoom, tur) SENGAJA
+ *  tetap diam-diam bila gagal: yang hilang hanya preferensi tampilan,
+ *  dan toast error yang menakutkan di tiap ganti tema lebih buruk daripada
+ *  preferensi yang tidak bertahan. Tulis-tulis itu juga kecil dan
+ *  menggantikan nilai lama dengan ukuran sama, jadi biasanya tetap lolos
+ *  walau penyimpanan hampir penuh. */
+function writeLS(key: string, value: string): boolean {
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Pesan awam saat tulis penyimpanan gagal karena penuh (U5). Bahasa
+ *  awam, tanpa istilah teknis ("kuota", "localStorage", "QuotaExceeded").
+ *  Tiap pesan menyebut APA yang belum tersimpan + APA yang harus dilakukan
+ *  pengguna (hapus sebagian video tersimpan — itulah isi terbesar yang
+ *  bisa dikosongkan dari dalam aplikasi). */
+const ERR_EDIT = "Penyimpanan penuh, edit belum tersimpan — hapus sebagian video tersimpan dulu";
+const ERR_RESET = "Penyimpanan penuh, kembalian belum tersimpan — hapus sebagian video tersimpan dulu";
+const ERR_DRAFT = "Penyimpanan penuh, draf belum tersimpan — hapus sebagian video tersimpan dulu";
+const ERR_MINE_SAVE = "Penyimpanan penuh, video belum tersimpan — hapus sebagian video tersimpan dulu";
+const ERR_MINE_DELETE = "Penyimpanan penuh, video belum terhapus — hapus sebagian video tersimpan dulu";
+
 const slugify = (s: string) =>
   s
     .toLowerCase()
@@ -566,6 +596,10 @@ export default function Studio() {
   const [skelText, setSkelText] = useState("Menyiapkan preview…");
   const [skelWhy, setSkelWhy] = useState("");
   const [toastMsg, setToastMsg] = useState("");
+  /** Toast sedang menampilkan pesan ERROR (U5): tampil merah supaya
+   *  terbedakan dari toast sukses biasa; hilang otomatis sama seperti
+   *  toast lain (timer yang sama, 2 dtk). */
+  const [toastErr, setToastErr] = useState(false);
   const [tlPps, setTlPps] = useState(20);
   const [tlFit, setTlFit] = useState(true);
   const [tlContentW, setTlContentW] = useState(0);
@@ -752,14 +786,21 @@ export default function Studio() {
   const pendingMineRef = useRef<MyVideo | null>(null);
   const stateRef = useRef({ cur, fields, def, applied, base, shots, caps, len, muted, playing, draftCaps, draftShots, draftVO, voTouched, voKindState, origCaps, origShots, draftProps });
   stateRef.current = { cur, fields, def, applied, base, shots, caps, len, muted, playing, draftCaps, draftShots, draftVO, voTouched, voKindState, origCaps, origShots, draftProps };
+  /** Cermin sinkron fullEdits (U5): saveCurrentFullEdit() harus menulis
+   *  localStorage SECARA SINKRON dan tahu hasilnya, jadi ia menghitung
+   *  `next` dari ref ini (bukan dari updater setState yang baru terlihat
+   *  sesudah re-render) dan memperbarui ref di tempat yang sama. */
+  const fullEditsRef = useRef(fullEdits);
+  fullEditsRef.current = fullEdits;
   playingRef.current = playing;
   lenRef.current = len;
   loopRef.current = loopOn;
 
-  const toast = useCallback((msg: string) => {
+  const toast = useCallback((msg: string, isErr = false) => {
     setToastMsg(msg);
+    setToastErr(isErr);
     if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToastMsg(""), 2000);
+    toastTimer.current = setTimeout(() => { setToastMsg(""); setToastErr(false); }, 2000);
   }, []);
 
   const st = useCallback(() => {
@@ -1272,10 +1313,16 @@ export default function Studio() {
     if (!base) baseRef.current = "";
   }, [base, mount]);
 
-  /** Simpan edit saat ini (teks+caps+shots+vo+props) ke ss.edits.v1. */
-  const saveCurrentFullEdit = useCallback(() => {
+  /** Simpan edit saat ini (teks+caps+shots+vo+props) ke ss.edits.v1.
+   *  Kembalikan TRUE bila tulis berhasil (atau tidak ada yang perlu
+   *  disimpan), FALSE bila tulis localStorage gagal (U5). Tulis dilakukan
+   *  SINKRON di sini — bukan menunggu efek persist di bawah — supaya
+   *  pemanggil (Terapkan, Kembalikan, ganti template) bisa memberi toast
+   *  yang jujur: sukses hanya bila benar-benar tersimpan. Efek persist
+   *  tetap ada sebagai jaring pengaman dan menulis ulang nilai yang sama. */
+  const saveCurrentFullEdit = useCallback((): boolean => {
     const s = stateRef.current;
-    if (!s.base || !s.cur) return;
+    if (!s.base || !s.cur) return true;
     const fe: FullEdit = {};
     const n = normalize(s.fields);
     if ((["title", "sub", "end"] as const).some((k) => n[k] !== s.def[k])) fe.text = { ...n };
@@ -1285,12 +1332,13 @@ export default function Studio() {
     if (s.voTouched && s.draftVO) fe.vo = [...s.draftVO];
     if (s.voTouched) fe.voTouched = true;
     if (JSON.stringify(s.draftProps) !== JSON.stringify(origProps)) fe.props = { ...s.draftProps };
-    setFullEdits((prev) => {
-      const next = { ...prev };
-      if (Object.keys(fe).length) next[s.cur.file] = fe;
-      else delete next[s.cur.file];
-      return next;
-    });
+    const next = { ...fullEditsRef.current };
+    if (Object.keys(fe).length) next[s.cur.file] = fe;
+    else delete next[s.cur.file];
+    const ok = writeLS(EDITS_KEY, JSON.stringify(next));
+    fullEditsRef.current = next;
+    setFullEdits(next);
+    return ok;
   }, [normalize, origProps]);
 
   const openTemplate = useCallback(
@@ -1303,7 +1351,9 @@ export default function Studio() {
           else delete next[cur.file];
           return next;
         });
-        saveCurrentFullEdit();
+        // Draf template lama di-persist saat pindah (H4/A13): bila tulis
+        // gagal, beri tahu — draf itu hilang saat reload (U5).
+        if (!saveCurrentFullEdit()) toast(ERR_DRAFT, true);
       }
       // Buka biasa (bukan via Video Buatan Saya) = lepas dari entri mine.
       if (!pendingMineRef.current) setActiveMineId(null);
@@ -1315,7 +1365,7 @@ export default function Studio() {
       document.title = t.label + " · Short Studio";
       load(t);
     },
-    [cur, base, hasChanges, normalize, fields, load, saveCurrentFullEdit]
+    [cur, base, hasChanges, normalize, fields, load, saveCurrentFullEdit, toast]
   );
 
   // Restore simpanan (mount saja, sesudah hidrasi): baca ss.edits.v1 +
@@ -1360,11 +1410,13 @@ export default function Studio() {
   // Persistensi edit per-template (ss.edits.v1). Gate restored: tanpa ini
   // efek mount pertama akan menimpa simpanan lama dengan {} (nilai awal
   // kosong pasca-perbaikan hidrasi) sebelum restore sempat membacanya.
+  // Jaring pengaman saja: saveCurrentFullEdit() sudah menulis nilai yang
+  // sama secara sinkron + melaporkan gagal ke pemanggil (U5), jadi efek
+  // ini SENGAJA diam bila gagal — toast ganda untuk satu kegagalan sama
+  // hanya akan menakut-nakuti pengguna dua kali.
   useEffect(() => {
     if (!restored) return;
-    try {
-      localStorage.setItem(EDITS_KEY, JSON.stringify(fullEdits));
-    } catch { /* private mode */ }
+    writeLS(EDITS_KEY, JSON.stringify(fullEdits));
   }, [fullEdits, restored]);
 
   // ---------- validasi draft (error = blokir Terapkan, warning = kuning) ----------
@@ -1509,10 +1561,25 @@ export default function Studio() {
 
 
   /** Terapkan SEMUA edit (teks+caps+shots+VO+props) — tombol Terapkan di
-   *  semua tab dan Ctrl+Enter. Diblokir bila ada error validasi. */
+   *  semua tab dan Ctrl+Enter. Diblokir bila ada error validasi.
+   *  Bila tulis penyimpanan GAGAL (U5): pratinjau tetap diperbarui
+   *  (mount), tapi baseline "diterapkan" SENGAJA tidak diubah — Terapkan
+   *  tetap aktif + status tetap "Siap diterapkan", supaya pengguna bisa
+   *  mencoba lagi sesudah mengosongkan penyimpanan. Toast sukses TIDAK
+   *  ditampilkan; yang tampil toast error awam. */
   const applyAll = useCallback(() => {
     if (!base || !ready || !anyDirty || allErrors.length) return;
-    saveCurrentFullEdit();
+    if (!saveCurrentFullEdit()) {
+      // mount() ikut memanggil setApplied(fields) — kembalikan baseline
+      // "diterapkan" ke nilai lama supaya Terapkan tetap aktif + status
+      // tetap "Siap diterapkan": pengguna bisa mencoba lagi sesudah
+      // mengosongkan penyimpanan, tanpa harus mengedit ulang.
+      const prevApplied = stateRef.current.applied;
+      mount(true);
+      setApplied(prevApplied);
+      toast(ERR_EDIT, true);
+      return;
+    }
     // Jadikan draft yang baru diterapkan sebagai baseline "diterapkan",
     // supaya tombol kembali disabled + status "Tidak ada perubahan".
     // orig* SENGAJA tidak diubah (lihat komentar di deklarasi
@@ -1578,12 +1645,14 @@ export default function Studio() {
       delete next[cur.file];
       return next;
     });
-    saveCurrentFullEdit();
+    const ok = saveCurrentFullEdit();
     if (base) {
       // mount memakai fields dari stateRef — tunda satu tick agar fields baru kebaca
       setTimeout(() => mount(true), 0);
     }
-    toast("Teks dikembalikan ke asli");
+    // U5: bila tulis gagal, jangan klaim "dikembalikan" — reset tidak akan
+    // bertahan sesudah reload (edit lama kembali).
+    toast(ok ? "Teks dikembalikan ke asli" : ERR_RESET, !ok);
   }, [def, cur, base, mount, toast, saveCurrentFullEdit]);
 
   const resetCaps = useCallback(() => {
@@ -1598,9 +1667,9 @@ export default function Studio() {
     stateRef.current.draftCaps = caps;
     stateRef.current.draftVO = vo;
     stateRef.current.voTouched = false;
-    saveCurrentFullEdit();
+    const ok = saveCurrentFullEdit();
     setTimeout(() => mount(true), 0);
-    toast("Caption dikembalikan ke asli");
+    toast(ok ? "Caption dikembalikan ke asli" : ERR_RESET, !ok);
   }, [origCaps, origVO, mount, toast, saveCurrentFullEdit]);
 
   const resetShots = useCallback(() => {
@@ -1609,9 +1678,9 @@ export default function Studio() {
     setDraftShots(shots);
     setAppliedShots(shots.map((x) => [x[0], [...x[1]], [...x[2]]] as Shot));
     stateRef.current.draftShots = shots;
-    saveCurrentFullEdit();
+    const ok = saveCurrentFullEdit();
     setTimeout(() => mount(true), 0);
-    toast("Shot dikembalikan ke asli");
+    toast(ok ? "Shot dikembalikan ke asli" : ERR_RESET, !ok);
   }, [origShots, mount, toast, saveCurrentFullEdit]);
 
   const resetProps = useCallback(() => {
@@ -1625,9 +1694,9 @@ export default function Studio() {
     setArrayText(at);
     setArrayErr({});
     stateRef.current.draftProps = dp;
-    saveCurrentFullEdit();
+    const ok = saveCurrentFullEdit();
     setTimeout(() => mount(true), 0);
-    toast("Pengaturan objek dikembalikan ke asli");
+    toast(ok ? "Pengaturan objek dikembalikan ke asli" : ERR_RESET, !ok);
   }, [origProps, mount, toast, propsAvail, saveCurrentFullEdit]);
 
   /** Terapkan nilai baru untuk satu prop array (sudah ter-parse).
@@ -1738,15 +1807,18 @@ export default function Studio() {
     if (shotsChanged) entry.shots = draftShots;
     if (voTouched && draftVO) entry.vo = draftVO;
     if (propsChanged) entry.props = { ...draftProps };
-    setMine((prev) => {
-      const next = existing
-        ? prev.map((m) => (m.id === existing.id ? entry : m))
-        : [entry, ...prev];
-      try {
-        localStorage.setItem(MINE_KEY, JSON.stringify(next));
-      } catch { /* private mode */ }
-      return next;
-    });
+    // U5: tulis ke localStorage DULU; bila gagal, JANGAN ubah state mine,
+    // JANGAN tutup dialog, JANGAN toast sukses — entri tidak boleh muncul
+    // di daftar padahal tidak tersimpan (sebelumnya: mineCount 1 di UI,
+    // ss.mine.v1 null, hilang sesudah reload).
+    const next = existing
+      ? mine.map((m) => (m.id === existing.id ? entry : m))
+      : [entry, ...mine];
+    if (!writeLS(MINE_KEY, JSON.stringify(next))) {
+      toast(ERR_MINE_SAVE, true);
+      return;
+    }
+    setMine(next);
     setActiveMineId(entry.id);
     setSaveMineOpen(false);
     toast(existing ? `"${label}" diperbarui di Video Buatan Saya` : `"${label}" disimpan di Video Buatan Saya`);
@@ -1809,17 +1881,18 @@ export default function Studio() {
 
   const deleteMine = useCallback(
     (id: string) => {
-      setMine((prev) => {
-        const next = prev.filter((m) => m.id !== id);
-        try {
-          localStorage.setItem(MINE_KEY, JSON.stringify(next));
-        } catch { /* private mode */ }
-        return next;
-      });
+      // U5: tulis dulu, baru ubah state — bila gagal, entri tetap tampil
+      // dan toast jujur (jangan klaim "dihapus" padahal masih tersimpan).
+      const next = mine.filter((m) => m.id !== id);
+      if (!writeLS(MINE_KEY, JSON.stringify(next))) {
+        toast(ERR_MINE_DELETE, true);
+        return;
+      }
+      setMine(next);
       if (activeMineId === id) setActiveMineId(null);
       toast("Video dihapus dari Video Buatan Saya");
     },
-    [activeMineId, toast]
+    [activeMineId, mine, toast]
   );
 
   /** Unduh satu entri sebagai file .html lengkap (setText+setCaps+setShots+setVO+setProps).
@@ -3459,7 +3532,7 @@ export default function Studio() {
         </div>
       )}
 
-      <div className={`toast${toastMsg ? " on" : ""}`} role="status" aria-live="polite">{toastMsg}</div>
+      <div className={`toast${toastMsg ? " on" : ""}${toastErr ? " err" : ""}`} role="status" aria-live="polite">{toastMsg}</div>
     </div>
   );
 }
