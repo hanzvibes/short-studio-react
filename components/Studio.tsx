@@ -552,6 +552,12 @@ export default function Studio() {
   const [tab, setTab] = useState<"teks" | "shot" | "cap" | "objek">("teks");
   const [time, setTime] = useState(0);
   const [ready, setReady] = useState(false);
+  /** Cermin sinkron dari `ready` (state React). `ready` di closure bisa
+   *  basi satu tick sesudah setReady(false) — padahal bridge BARU sudah
+   *  ada (`__st` terpasang) tapi belum di-seek (gT()=0). mount() dan sync
+   *  loop memakai ref ini supaya tidak pernah membaca 0 dari bridge
+   *  yang belum siap (U6/F2). Diperbarui di SETIAP situs setReady. */
+  const readyRef = useRef(false);
   const [status, setStatus] = useState<Status>("load");
   const [statusText, setStatusText] = useState("Memuat…");
   const [statusInfo, setStatusInfo] = useState("Memuat project…");
@@ -725,6 +731,12 @@ export default function Studio() {
   const rafRef = useRef(0);
   const seekGuardRef = useRef(false);
   const lastTRef = useRef(-1);
+  /** Waktu video terakhir yang tercatat dari bridge (detik). Dipakai
+   *  mount(keepTime=true) bila bridge belum siap (live reload) — bridge
+   *  yang hilang mengembalikan 0 lewat gT(), dan 0 itu BUKAN waktu yang
+   *  benar (akar U6/F2: t=15 ke-reset ke 0). Diperbarui tiap frame oleh
+   *  sync loop, tiap goTo, dan tiap onload mount. */
+  const lastTimeRef = useRef(0);
   const lastShotRef = useRef(-2);
   const lastCapRef = useRef(-2);
   const playingRef = useRef(false);
@@ -755,12 +767,17 @@ export default function Studio() {
     return (w && w.__st) || null;
   }, []);
 
+  /** Waktu video saat ini. Bila bridge belum siap (mis. iframe sedang
+   *  live reload), kembalikan waktu terakhir yang tercatat, BUKAN 0 —
+   *  0 membuat mount(keepTime=true) me-reset video ke awal (U6/F2). */
   const currentTime = useCallback(() => {
     const s = st();
+    if (!s) return lastTimeRef.current;
     try {
-      return s ? s.gT() : 0;
+      const t = s.gT();
+      return Number.isFinite(t) ? t : lastTimeRef.current;
     } catch {
-      return 0;
+      return lastTimeRef.current;
     }
   }, [st]);
 
@@ -768,8 +785,10 @@ export default function Studio() {
     (t: number) => {
       const s = st();
       if (!s || !ready) return;
+      const tt = clamp(t, 0, Math.max(0, lenRef.current - 0.01));
+      lastTimeRef.current = tt;
       seekGuardRef.current = true;
-      s.seek(clamp(t, 0, Math.max(0, lenRef.current - 0.01)));
+      s.seek(tt);
     },
     [st, ready]
   );
@@ -1018,7 +1037,10 @@ export default function Studio() {
       const s = stateRef.current;
       if (!s.base) return;
       const id = loadIdRef.current;
-      const t = keepTime ? currentTime() : resumeAt;
+      // Bridge hanya bisa dipercaya bila preview siap: bridge BARU yang
+      // sedang dimuat sudah punya __st tapi gT()=0 sebelum onload men-seek.
+      // Bila belum siap, pakai waktu terakhir yang tercatat (U6/F2).
+      const t = keepTime ? (readyRef.current ? currentTime() : lastTimeRef.current) : resumeAt;
       const resume = keepTime && playingRef.current;
       const f = normalize(s.fields);
       const changed: Partial<TextFields> = {};
@@ -1069,6 +1091,11 @@ export default function Studio() {
       if (rewritten.replaced > 0) out = rewritten.html;
       const pv = iframeRef.current;
       if (!pv) return;
+      // Live reload: preview BELUM siap sampai onload sukses — tandai
+      // ready=false supaya Terapkan/Kembalikan (dan goTo/toggle) tidak
+      // bisa jalan saat bridge hilang (akar U6/F2: ready tetap true).
+      readyRef.current = false;
+      setReady(false);
       pv.onload = () => {
         if (id !== loadIdRef.current) return;
         const w = pv.contentWindow as unknown as {
@@ -1094,6 +1121,7 @@ export default function Studio() {
           setStatus("err");
           setStatusText("Preview error");
           setStatusInfo("Preview belum bisa dimulai · cek koneksi lalu Coba lagi");
+          readyRef.current = false;
           setReady(false);
           toast("Preview gagal dimulai");
           return;
@@ -1110,9 +1138,11 @@ export default function Studio() {
         } catch { /* template lama */ }
         bridge.pause();
         bridge.seek(t);
+        lastTimeRef.current = t;
         setStatus("ok");
         setStatusText("Preview siap");
         setStatusInfo(`${TEMPLATES.length} template · ${fmt(L)} · ${SH.length} shot · ${CP.length} caption`);
+        readyRef.current = true;
         setReady(true);
         lastTRef.current = -1;
         lastShotRef.current = lastCapRef.current = -2;
@@ -1142,6 +1172,7 @@ export default function Studio() {
       const id = ++loadIdRef.current;
       cancelAnimationFrame(rafRef.current);
       setBase("");
+      readyRef.current = false;
       setReady(false);
       setPlaying(false);
       setStatus("load");
@@ -1783,13 +1814,17 @@ export default function Studio() {
       if (!gap || ts - lastTick >= gap) {
         lastTick = ts;
         const s = st();
-        if (s && ready) {
+        // Gerbang readyRef (bukan state `ready` yang bisa basi satu tick):
+        // bridge BARU yang belum di-seek membaca gT()=0 dan akan meracuni
+        // lastTimeRef bila dibaca di jendela reload (U6/F2).
+        if (s && readyRef.current) {
           let t: number;
           try {
             t = s.gT();
           } catch {
             t = lastTRef.current;
           }
+          if (Number.isFinite(t) && t >= 0) lastTimeRef.current = t;
           const prev = lastTRef.current;
           const wrapped = !seekGuardRef.current && prev > 1 && t < 1;
           seekGuardRef.current = false;
@@ -1814,6 +1849,7 @@ export default function Studio() {
             } catch { /* ignore */ }
             setPlaying(false);
             lastTRef.current = lenRef.current - 0.01;
+            lastTimeRef.current = lenRef.current - 0.01;
             setTime(lenRef.current - 0.01);
             lastShotRef.current = lastCapRef.current = -2;
           }

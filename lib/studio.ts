@@ -2860,6 +2860,7 @@ export const PROP_DEFS: PropDef[] = [
       "name": "T_DEBATE",
       "before": "function frame(t){",
       "default": 9,
+      "defaultByFile": { "template-trio.html": 12 },
       "sites": [["ar=s2(9,10.2)", "ar=s2(T_DEBATE,T_DEBATE+1.2)"], ["fe=s2(10.5,11)", "fe=s2(T_DEBATE+1.5,T_DEBATE+2)"]],
       "sitesByFile": {
         "template-trio.html": [["ar=s2(12,13)", "ar=s2(T_DEBATE,T_DEBATE+1)"]]
