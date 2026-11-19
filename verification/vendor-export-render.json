@@ -1,0 +1,28 @@
+{
+  "hasRenderAt": true,
+  "hasTHREE": true,
+  "canvas": {
+    "w": 632,
+    "h": 1125
+  },
+  "title": "Judul Verifikasi Vendorkode siapa yang paling bagus?",
+  "renderAtOk": true,
+  "cdnThreeRequests": 13,
+  "cdnThree": [
+    "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js",
+    "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js",
+    "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js",
+    "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/BokehShader.js",
+    "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/AfterimageShader.js",
+    "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js",
+    "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/MaskPass.js",
+    "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js",
+    "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js",
+    "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/BokehPass.js",
+    "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js",
+    "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/AfterimagePass.js",
+    "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/FXAAShader.js"
+  ],
+  "vendorRequests": 0,
+  "errors": []
+}

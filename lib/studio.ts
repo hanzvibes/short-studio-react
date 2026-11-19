@@ -111,6 +111,67 @@ export function setText(html: string, f: Partial<TextFields>): string {
 }
 
 /**
+ * ============ VENDOR three.js (preview) ============
+ * 12 template memuat three.js r128 dari CDN (1 file cdnjs + 12 file
+ * jsdelivr, 13 script tag per template). CDN itu tidak selalu bisa
+ * dijangkau — di lingkungan tanpa internet preview 3D mati total
+ * ("THREE is not defined"). Karena itu 13 file yang sama di-vendor ke
+ * `public/vendor/` (flat, nama file sama; lihat README.md "Vendor
+ * three.js" untuk daftar + hash sha256 + cara update).
+ *
+ * `rewriteThreeCdnToLocal` menukar 13 URL CDN itu dengan `/vendor/<nama>`
+ * KHUSUS UNTUK PREVIEW di Studio (srcdoc iframe) — urutan script tetap
+ * sama seperti aslinya. Satu-satunya pemanggil: `mount()` di
+ * components/Studio.tsx, yang dilewati SEMUA jalur preview (template
+ * asli, edit tersimpan, "Video Buatan Saya").
+ *
+ * JANGAN dipakai untuk export: `applyEdits` (dipakai `downloadMine` di
+ * Studio.tsx dan `scripts/export.mjs`) SENGAJA tidak me-rewrite —
+ * file .html hasil unduh harus tetap standalone dan jalan di browser
+ * normal, jadi tetap pakai URL CDN. Pemisahan: preview = rewrite lokal,
+ * export = CDN asli. (Pola yang sama dipakai claudeku-studio.)
+ *
+ * Google Fonts (Plus Jakarta Sans) SENGAJA tetap CDN dan tidak
+ * di-rewrite: font hanya soal tampilan — tanpa internet teks jatuh ke
+ * font sistem dan video tetap jalan, tidak seperti three.js yang fatal.
+ */
+export const CDN_THREE_MAIN =
+  "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js";
+export const CDN_THREE_EXAMPLES_PREFIX =
+  "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/";
+
+/** Jumlah script three.js CDN yang dikenali di sebuah HTML. */
+export function countCdnThreeScripts(html: string): number {
+  const main = html.includes(CDN_THREE_MAIN) ? 1 : 0;
+  const examples = html.split(CDN_THREE_EXAMPLES_PREFIX).length - 1;
+  return main + examples;
+}
+
+/**
+ * Tukar 13 URL CDN three.js r128 dengan /vendor/<basename>.
+ * Mengembalikan { html, replaced } — replaced harus 13 untuk template
+ * canonical; bila 0, HTML bukan template three.js yang dikenal.
+ * Hanya menyentuh URL script three.js; font Google, konten, dan urutan
+ * script lainnya tidak diubah.
+ */
+export function rewriteThreeCdnToLocal(html: string): { html: string; replaced: number } {
+  let replaced = 0;
+  let out = html;
+  if (out.includes(CDN_THREE_MAIN)) {
+    out = out.split(CDN_THREE_MAIN).join("/vendor/three.min.js");
+    replaced += 1;
+  }
+  out = out.replace(
+    /https:\/\/cdn\.jsdelivr\.net\/npm\/three@0\.128\.0\/examples\/js\/(?:shaders|postprocessing)\/([A-Za-z0-9]+\.js)/g,
+    (_m, file: string) => {
+      replaced += 1;
+      return `/vendor/${file}`;
+    },
+  );
+  return { html: out, replaced };
+}
+
+/**
  * ============ EDIT CAPS / SHOTS / VO / PROPS ============
  * SINKRON dengan scripts/apply-edit.mjs (implementasi JS yang sama) dan
  * scripts/export.mjs --edit (mengimpor dari apply-edit.mjs).

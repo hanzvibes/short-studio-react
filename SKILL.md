@@ -97,6 +97,11 @@ iframe srcdoc (components/Studio.tsx) — file template di disk TIDAK PERNAH diu
   kanan-atas + `by @hanzvibes` di end card (`#end small`). `apply-edit.mjs`
   gagal bila jumlah kemunculan `@hanzvibes` berkurang sesudah edit.
 - **three.js r128** (pinned, CDN jsDelivr) — jangan ganti versi.
+  (Catatan studio React 2026-11-19: aturan ini berlaku untuk file `.html`
+  hasil export/unduh — file itu standalone dan tetap pakai URL CDN. Untuk
+  PREVIEW di Studio, 13 file three.js r128 yang sama di-vendor ke
+  `public/vendor/` dan URL CDN di-rewrite ke `/vendor/` saat srcdoc dibuat
+  — lihat "Vendor three.js" di README.md.)
 - **9:16** — stage letterboxed di desktop, teks terbaca di HP.
 - **Caption ≤ 2,5 kata/detik** (3,2 dtk = 8 kata; 2,4 dtk = 6 kata). CLI
   memberlakukannya sebagai ERROR; UI Studio menandainya peringatan.

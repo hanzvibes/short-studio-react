@@ -1,0 +1,472 @@
+{
+  "blockCdn": true,
+  "base": "http://localhost:3101",
+  "results": [
+    {
+      "file": "template-perang.html",
+      "label": "Perang Sub Agent",
+      "kind": "34s",
+      "ready": true,
+      "bridgeOk": true,
+      "len": 34,
+      "shots": 15,
+      "caps": 13,
+      "canvas": {
+        "w": 226,
+        "h": 401
+      },
+      "status": "Preview siap",
+      "vendorReqs": 13,
+      "vendorOk200": 13,
+      "vendorFiles": [
+        "AfterimagePass.js",
+        "AfterimageShader.js",
+        "BokehPass.js",
+        "BokehShader.js",
+        "CopyShader.js",
+        "EffectComposer.js",
+        "FXAAShader.js",
+        "LuminosityHighPassShader.js",
+        "MaskPass.js",
+        "RenderPass.js",
+        "ShaderPass.js",
+        "UnrealBloomPass.js",
+        "three.min.js"
+      ],
+      "cdnThreeAttempts": 0,
+      "cdnThreeUrls": [],
+      "fontAttempts": 1,
+      "errors": [
+        "console: Failed to load resource: net::ERR_FAILED"
+      ],
+      "screenshot": "verification/vendor-cdn-blocked-template-perang.png"
+    },
+    {
+      "file": "template-code.html",
+      "label": "Adu Kode",
+      "kind": "30s",
+      "ready": true,
+      "bridgeOk": true,
+      "len": 30,
+      "shots": 10,
+      "caps": 8,
+      "canvas": {
+        "w": 282,
+        "h": 501
+      },
+      "status": "Preview siap",
+      "vendorReqs": 13,
+      "vendorOk200": 13,
+      "vendorFiles": [
+        "AfterimagePass.js",
+        "AfterimageShader.js",
+        "BokehPass.js",
+        "BokehShader.js",
+        "CopyShader.js",
+        "EffectComposer.js",
+        "FXAAShader.js",
+        "LuminosityHighPassShader.js",
+        "MaskPass.js",
+        "RenderPass.js",
+        "ShaderPass.js",
+        "UnrealBloomPass.js",
+        "three.min.js"
+      ],
+      "cdnThreeAttempts": 0,
+      "cdnThreeUrls": [],
+      "fontAttempts": 1,
+      "errors": [
+        "console: Failed to load resource: net::ERR_FAILED"
+      ],
+      "screenshot": "verification/vendor-cdn-blocked-template-code.png"
+    },
+    {
+      "file": "template-kuota.html",
+      "label": "Rebutan Kuota",
+      "kind": "34s",
+      "ready": true,
+      "bridgeOk": true,
+      "len": 34,
+      "shots": 13,
+      "caps": 14,
+      "canvas": {
+        "w": 226,
+        "h": 401
+      },
+      "status": "Preview siap",
+      "vendorReqs": 13,
+      "vendorOk200": 13,
+      "vendorFiles": [
+        "AfterimagePass.js",
+        "AfterimageShader.js",
+        "BokehPass.js",
+        "BokehShader.js",
+        "CopyShader.js",
+        "EffectComposer.js",
+        "FXAAShader.js",
+        "LuminosityHighPassShader.js",
+        "MaskPass.js",
+        "RenderPass.js",
+        "ShaderPass.js",
+        "UnrealBloomPass.js",
+        "three.min.js"
+      ],
+      "cdnThreeAttempts": 0,
+      "cdnThreeUrls": [],
+      "fontAttempts": 1,
+      "errors": [
+        "console: Failed to load resource: net::ERR_FAILED"
+      ],
+      "screenshot": "verification/vendor-cdn-blocked-template-kuota.png"
+    },
+    {
+      "file": "template-rival.html",
+      "label": "Musuhan Satu Meja",
+      "kind": "34s",
+      "ready": true,
+      "bridgeOk": true,
+      "len": 34,
+      "shots": 12,
+      "caps": 13,
+      "canvas": {
+        "w": 226,
+        "h": 401
+      },
+      "status": "Preview siap",
+      "vendorReqs": 13,
+      "vendorOk200": 13,
+      "vendorFiles": [
+        "AfterimagePass.js",
+        "AfterimageShader.js",
+        "BokehPass.js",
+        "BokehShader.js",
+        "CopyShader.js",
+        "EffectComposer.js",
+        "FXAAShader.js",
+        "LuminosityHighPassShader.js",
+        "MaskPass.js",
+        "RenderPass.js",
+        "ShaderPass.js",
+        "UnrealBloomPass.js",
+        "three.min.js"
+      ],
+      "cdnThreeAttempts": 0,
+      "cdnThreeUrls": [],
+      "fontAttempts": 1,
+      "errors": [
+        "console: Failed to load resource: net::ERR_FAILED"
+      ],
+      "screenshot": "verification/vendor-cdn-blocked-template-rival.png"
+    },
+    {
+      "file": "template-trio.html",
+      "label": "Claude vs Codex vs Gemini",
+      "kind": "32s",
+      "ready": true,
+      "bridgeOk": true,
+      "len": 32,
+      "shots": 10,
+      "caps": 9,
+      "canvas": {
+        "w": 226,
+        "h": 401
+      },
+      "status": "Preview siap",
+      "vendorReqs": 13,
+      "vendorOk200": 13,
+      "vendorFiles": [
+        "AfterimagePass.js",
+        "AfterimageShader.js",
+        "BokehPass.js",
+        "BokehShader.js",
+        "CopyShader.js",
+        "EffectComposer.js",
+        "FXAAShader.js",
+        "LuminosityHighPassShader.js",
+        "MaskPass.js",
+        "RenderPass.js",
+        "ShaderPass.js",
+        "UnrealBloomPass.js",
+        "three.min.js"
+      ],
+      "cdnThreeAttempts": 0,
+      "cdnThreeUrls": [],
+      "fontAttempts": 1,
+      "errors": [
+        "console: Failed to load resource: net::ERR_FAILED"
+      ],
+      "screenshot": "verification/vendor-cdn-blocked-template-trio.png"
+    },
+    {
+      "file": "template.html",
+      "label": "Versus",
+      "kind": "28s",
+      "ready": true,
+      "bridgeOk": true,
+      "len": 28,
+      "shots": 9,
+      "caps": 7,
+      "canvas": {
+        "w": 226,
+        "h": 401
+      },
+      "status": "Preview siap",
+      "vendorReqs": 13,
+      "vendorOk200": 13,
+      "vendorFiles": [
+        "AfterimagePass.js",
+        "AfterimageShader.js",
+        "BokehPass.js",
+        "BokehShader.js",
+        "CopyShader.js",
+        "EffectComposer.js",
+        "FXAAShader.js",
+        "LuminosityHighPassShader.js",
+        "MaskPass.js",
+        "RenderPass.js",
+        "ShaderPass.js",
+        "UnrealBloomPass.js",
+        "three.min.js"
+      ],
+      "cdnThreeAttempts": 0,
+      "cdnThreeUrls": [],
+      "fontAttempts": 1,
+      "errors": [
+        "console: Failed to load resource: net::ERR_FAILED"
+      ],
+      "screenshot": "verification/vendor-cdn-blocked-template.png"
+    },
+    {
+      "file": "template-typing.html",
+      "label": "Mengetik (Claude × Remotion)",
+      "kind": "~30s",
+      "ready": true,
+      "bridgeOk": true,
+      "len": 26,
+      "shots": 8,
+      "caps": 6,
+      "canvas": {
+        "w": 226,
+        "h": 401
+      },
+      "status": "Preview siap",
+      "vendorReqs": 13,
+      "vendorOk200": 13,
+      "vendorFiles": [
+        "AfterimagePass.js",
+        "AfterimageShader.js",
+        "BokehPass.js",
+        "BokehShader.js",
+        "CopyShader.js",
+        "EffectComposer.js",
+        "FXAAShader.js",
+        "LuminosityHighPassShader.js",
+        "MaskPass.js",
+        "RenderPass.js",
+        "ShaderPass.js",
+        "UnrealBloomPass.js",
+        "three.min.js"
+      ],
+      "cdnThreeAttempts": 0,
+      "cdnThreeUrls": [],
+      "fontAttempts": 1,
+      "errors": [
+        "console: Failed to load resource: net::ERR_FAILED"
+      ],
+      "screenshot": "verification/vendor-cdn-blocked-template-typing.png"
+    },
+    {
+      "file": "template-deploy.html",
+      "label": "Deploy Jumat Sore",
+      "kind": "33s",
+      "ready": true,
+      "bridgeOk": true,
+      "len": 29,
+      "shots": 9,
+      "caps": 8,
+      "canvas": {
+        "w": 226,
+        "h": 401
+      },
+      "status": "Preview siap",
+      "vendorReqs": 13,
+      "vendorOk200": 13,
+      "vendorFiles": [
+        "AfterimagePass.js",
+        "AfterimageShader.js",
+        "BokehPass.js",
+        "BokehShader.js",
+        "CopyShader.js",
+        "EffectComposer.js",
+        "FXAAShader.js",
+        "LuminosityHighPassShader.js",
+        "MaskPass.js",
+        "RenderPass.js",
+        "ShaderPass.js",
+        "UnrealBloomPass.js",
+        "three.min.js"
+      ],
+      "cdnThreeAttempts": 0,
+      "cdnThreeUrls": [],
+      "fontAttempts": 1,
+      "errors": [
+        "console: Failed to load resource: net::ERR_FAILED"
+      ],
+      "screenshot": "verification/vendor-cdn-blocked-template-deploy.png"
+    },
+    {
+      "file": "template-bughunter.html",
+      "label": "Bug Hunter 02.00",
+      "kind": "33s",
+      "ready": true,
+      "bridgeOk": true,
+      "len": 33,
+      "shots": 11,
+      "caps": 10,
+      "canvas": {
+        "w": 226,
+        "h": 401
+      },
+      "status": "Preview siap",
+      "vendorReqs": 13,
+      "vendorOk200": 13,
+      "vendorFiles": [
+        "AfterimagePass.js",
+        "AfterimageShader.js",
+        "BokehPass.js",
+        "BokehShader.js",
+        "CopyShader.js",
+        "EffectComposer.js",
+        "FXAAShader.js",
+        "LuminosityHighPassShader.js",
+        "MaskPass.js",
+        "RenderPass.js",
+        "ShaderPass.js",
+        "UnrealBloomPass.js",
+        "three.min.js"
+      ],
+      "cdnThreeAttempts": 0,
+      "cdnThreeUrls": [],
+      "fontAttempts": 1,
+      "errors": [
+        "console: Failed to load resource: net::ERR_FAILED"
+      ],
+      "screenshot": "verification/vendor-cdn-blocked-template-bughunter.png"
+    },
+    {
+      "file": "template-bomb.html",
+      "label": "Misi Mustahil: Merge Conflict",
+      "kind": "33s",
+      "ready": true,
+      "bridgeOk": true,
+      "len": 33,
+      "shots": 11,
+      "caps": 10,
+      "canvas": {
+        "w": 226,
+        "h": 401
+      },
+      "status": "Preview siap",
+      "vendorReqs": 13,
+      "vendorOk200": 13,
+      "vendorFiles": [
+        "AfterimagePass.js",
+        "AfterimageShader.js",
+        "BokehPass.js",
+        "BokehShader.js",
+        "CopyShader.js",
+        "EffectComposer.js",
+        "FXAAShader.js",
+        "LuminosityHighPassShader.js",
+        "MaskPass.js",
+        "RenderPass.js",
+        "ShaderPass.js",
+        "UnrealBloomPass.js",
+        "three.min.js"
+      ],
+      "cdnThreeAttempts": 0,
+      "cdnThreeUrls": [],
+      "fontAttempts": 1,
+      "errors": [
+        "console: Failed to load resource: net::ERR_FAILED"
+      ],
+      "screenshot": "verification/vendor-cdn-blocked-template-bomb.png"
+    },
+    {
+      "file": "template-meeting.html",
+      "label": "Rapat 5 Menit",
+      "kind": "33s",
+      "ready": true,
+      "bridgeOk": true,
+      "len": 33,
+      "shots": 10,
+      "caps": 10,
+      "canvas": {
+        "w": 226,
+        "h": 401
+      },
+      "status": "Preview siap",
+      "vendorReqs": 13,
+      "vendorOk200": 13,
+      "vendorFiles": [
+        "AfterimagePass.js",
+        "AfterimageShader.js",
+        "BokehPass.js",
+        "BokehShader.js",
+        "CopyShader.js",
+        "EffectComposer.js",
+        "FXAAShader.js",
+        "LuminosityHighPassShader.js",
+        "MaskPass.js",
+        "RenderPass.js",
+        "ShaderPass.js",
+        "UnrealBloomPass.js",
+        "three.min.js"
+      ],
+      "cdnThreeAttempts": 0,
+      "cdnThreeUrls": [],
+      "fontAttempts": 1,
+      "errors": [
+        "console: Failed to load resource: net::ERR_FAILED"
+      ],
+      "screenshot": "verification/vendor-cdn-blocked-template-meeting.png"
+    },
+    {
+      "file": "template-sleep.html",
+      "label": "Tidur di Keyboard",
+      "kind": "36s",
+      "ready": true,
+      "bridgeOk": true,
+      "len": 36,
+      "shots": 10,
+      "caps": 3,
+      "canvas": {
+        "w": 226,
+        "h": 401
+      },
+      "status": "Preview siap",
+      "vendorReqs": 13,
+      "vendorOk200": 13,
+      "vendorFiles": [
+        "AfterimagePass.js",
+        "AfterimageShader.js",
+        "BokehPass.js",
+        "BokehShader.js",
+        "CopyShader.js",
+        "EffectComposer.js",
+        "FXAAShader.js",
+        "LuminosityHighPassShader.js",
+        "MaskPass.js",
+        "RenderPass.js",
+        "ShaderPass.js",
+        "UnrealBloomPass.js",
+        "three.min.js"
+      ],
+      "cdnThreeAttempts": 0,
+      "cdnThreeUrls": [],
+      "fontAttempts": 0,
+      "errors": [],
+      "screenshot": "verification/vendor-cdn-blocked-template-sleep.png"
+    }
+  ]
+}

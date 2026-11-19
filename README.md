@@ -23,8 +23,11 @@ npm run build    # build produksi (harus hijau)
 npm start        # jalankan hasil build
 ```
 
-Template butuh internet saat preview: three.js r128 dimuat dari CDN
-(jsDelivr) di dalam iframe template, sama seperti studio aslinya.
+Preview **tidak butuh internet untuk three.js**: 13 file three.js r128
+di-vendor ke `public/vendor/` dan URL CDN di-rewrite ke `/vendor/` saat
+srcdoc preview dibuat (lihat "Vendor three.js" di bawah). Font Google
+(Plus Jakarta Sans) masih dimuat dari CDN — tanpa internet teks jatuh ke
+font sistem dan video tetap jalan.
 
 ## Struktur folder
 
@@ -41,11 +44,74 @@ lib/
                  # parseDefaults, helper waktu — sama seperti studio.js
 public/
   templates/     # 12 template HTML (byte-identik, jangan diedit)
+  vendor/        # 13 file three.js r128 (di-vendor, lihat "Vendor three.js")
   templates.json # registry template (label, durasi, teks default)
 scripts/
   export.mjs     # ekspor MP4: Playwright + ffmpeg (lihat bawah)
 SKILL.md         # skill threejs-cinematic-short sumber (v3.14)
 ```
+
+## Vendor three.js (preview) — 2026-11-19
+
+12 template memuat three.js r128 dari CDN (13 `<script>` per template).
+CDN tidak selalu bisa dijangkau — di lingkungan tanpa internet preview 3D
+mati total ("THREE is not defined"). Karena itu 13 file yang sama di-vendor
+ke `public/vendor/` (flat, nama file sama seperti sumbernya) dan Studio
+menukar URL CDN dengan `/vendor/<nama>` **hanya saat membuat srcdoc
+preview** (`rewriteThreeCdnToLocal` di `lib/studio.ts`, dipanggil satu
+kali di `mount()` — `components/Studio.tsx` — yang dilewati semua jalur
+preview: template asli, edit tersimpan, "Video Buatan Saya"). File
+template di disk tidak berubah (tetap pakai URL CDN) dan urutan script
+tetap sama.
+
+| File vendor | Sumber CDN | sha256 |
+|---|---|---|
+| `three.min.js` | `cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js` | `9274bbce…a2c1ce2` |
+| `CopyShader.js` | `cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js` | `6b5da4fe…1333949` |
+| `LuminosityHighPassShader.js` | `…/examples/js/shaders/LuminosityHighPassShader.js` | `00ed0682…a8544da` |
+| `BokehShader.js` | `…/examples/js/shaders/BokehShader.js` | `65c0704a…40958fd` |
+| `AfterimageShader.js` | `…/examples/js/shaders/AfterimageShader.js` | `ba94c52b…0774961` |
+| `FXAAShader.js` | `…/examples/js/shaders/FXAAShader.js` | `0ea1d37b…9c96e41` |
+| `EffectComposer.js` | `…/examples/js/postprocessing/EffectComposer.js` | `4fc320fa…b057a2b` |
+| `MaskPass.js` | `…/examples/js/postprocessing/MaskPass.js` | `32a23fb5…172ef03` |
+| `ShaderPass.js` | `…/examples/js/postprocessing/ShaderPass.js` | `2e64890b…eaf1240` |
+| `RenderPass.js` | `…/examples/js/postprocessing/RenderPass.js` | `57a549b2…b3878be` |
+| `BokehPass.js` | `…/examples/js/postprocessing/BokehPass.js` | `34ce2630…d98a010` |
+| `UnrealBloomPass.js` | `…/examples/js/postprocessing/UnrealBloomPass.js` | `1ed342b2…562dced` |
+| `AfterimagePass.js` | `…/examples/js/postprocessing/AfterimagePass.js` | `54e90ae7…229decb` |
+
+(Hex lengkap: `sha256sum public/vendor/*.js`.) Tiap file diverifikasi
+dua arah saat vendoring: hash unduhan langsung dari CDN resmi **sama
+persis** dengan salinan vendor di repo tetangga claudeku-studio
+(`public/vendor/` yang sama 13 file) — keduanya cocok 13/13, jadi sumber
+mana pun terbukti identik dengan CDN. Total 687.732 byte (671,6 KiB).
+
+**Keputusan export (a) — file .html hasil unduh/export TETAP pakai URL
+CDN.** Alasan: file hasil unduh harus standalone — dibuka langsung di
+browser mana pun tanpa file pendamping; `/vendor/` hanya ada di server
+studio, tidak ikut terunduh. Selain itu `scripts/export.mjs` me-render
+lewat `page.setContent` (tanpa origin) sehingga path relatif `/vendor/`
+tidak akan termuat. Jadi `applyEdits` (dipakai unduhan "Video Buatan
+Saya" + `export.mjs`) SENGAJA tidak me-rewrite. Pemisahan: preview =
+rewrite lokal, export = CDN asli. Bila suatu saat mau export ikut vendor,
+file `.html` harus diunduh bersama seluruh isi `public/vendor/` dan dibuka
+dari server lokal — bukan perilaku default.
+
+**Google Fonts TIDAK di-vendor (tetap CDN), sengaja.** Plus Jakarta Sans
+hanya soal tampilan: tanpa internet teks jatuh ke font sistem dan video
+tetap jalan — tidak seperti three.js yang fatal bila gagal dimuat.
+Mem-vendor font berarti mengunduh subset woff2 per browser + `@font-face`
+sendiri, dengan manfaat kecil. Bila font di-vendor suatu hari, rewrite
+font harus ditambahkan terpisah — `rewriteThreeCdnToLocal` hanya menyentuh
+URL script three.js.
+
+**Cara update vendor bila versi three.js berubah** (jangan ganti versi
+sembarangan — aturan skill: r128 pinned): unduh 13 file dari URL CDN
+versi baru ke `public/vendor/`, perbarui konstanta `CDN_THREE_MAIN` /
+`CDN_THREE_EXAMPLES_PREFIX` + regex di `rewriteThreeCdnToLocal`
+(`lib/studio.ts`), perbarui tabel hash di atas, lalu jalankan
+`node scripts/sync-check.mjs` (memeriksa rewrite 13/13 per template) dan
+`npm run build`.
 
 ## Cara kerja (bridge — kenapa template tidak perlu diubah)
 
@@ -227,12 +293,13 @@ shot/caption, canvas WebGL) + uji alur edit teks (Terapkan → judul di iframe
 berubah). Hasil terakhir: 12/12 OK, 0 error console.
 
 Catatan lingkungan: Chromium headless di VM ini tidak bisa mencapai CDN
-(`ERR_CONNECTION_RESET` lewat egress proxy; `curl` ke host yang sama berhasil),
-padahal template memuat three.js r128 dari CDN. Kedua skrip verifikasi
-mengalihkan request CDN ke salinan three r128 lokal (`/tmp/ss-vendor/`,
-diunduh via curl) — hanya intersepsi jaringan saat verifikasi, template di
-disk tidak diubah. Di browser normal (termasuk tablet Rehan) CDN dimuat
-langsung tanpa intersepsi ini.
+(`ERR_CONNECTION_RESET` lewat egress proxy; `curl` ke host yang sama
+berhasil). Sejak three.js di-vendor (2026-11-19, lihat "Vendor three.js"),
+preview di Studio tidak lagi meminta CDN three.js — intersepsi CDN di
+`scripts/verify-headless.mjs` kini tidak terpakai untuk three.js (tetap
+ada untuk font Google, yang masih CDN). Intersepsi itu MASIH diperlukan
+bila me-render file `.html` hasil CLI/export secara headless — file hasil
+export sengaja tetap pakai URL CDN supaya standalone.
 
 ## Ekspor MP4
 
@@ -250,7 +317,8 @@ Perkiraan: 30 detik × 60 fps = 1.800 frame.
 **Batasan:** ekspor **tidak menyertakan audio** — Web Speech tidak bisa
 dirender. Untuk narasi, buat TTS offline (mis. piper/edge-tts) dari `VO[]` +
 waktu `caps`, lalu mux dengan ffmpeg. Butuh Chromium + ffmpeg + internet
-(template memuat three.js dari CDN).
+(file hasil export tetap memuat three.js dari CDN — lihat "Vendor
+three.js").
 
 ## Selisih dari studio vanilla (dicatat, bukan dihapus diam-diam)
 

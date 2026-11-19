@@ -10,6 +10,11 @@
 //                          yang sinkron dengan lib/studio.ts — jangan duplikasi di sini.)
 //   Cek hasil edit saja:   --edit spec.json --dry-run [--out-html out.html]
 //                          (tulis HTML hasil edit tanpa me-render; tanpa butuh Playwright)
+//   CATATAN VENDOR (2026-11-19): HTML hasil skrip ini SENGAJA tetap pakai
+//   URL CDN three.js (bukan /vendor/) — file hasil export/unduh harus
+//   standalone. Rewrite CDN->/vendor/ hanya untuk PREVIEW di Studio
+//   (lib/studio.ts rewriteThreeCdnToLocal, dipanggil mount() di
+//   components/Studio.tsx). Lihat "Vendor three.js" di README.md.
 import { spawn } from 'node:child_process';
 import { mkdtemp, rm, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';

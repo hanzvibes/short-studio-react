@@ -16,6 +16,7 @@ import {
   parseProps,
   parseShots,
   parseVO,
+  rewriteThreeCdnToLocal,
   setCaps as writeCaps,
   setProps as writeProps,
   setShots as writeShots,
@@ -1059,6 +1060,13 @@ export default function Studio() {
             ? '<head><script>try{Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})}catch(e){}</script>'
             : "<head>"
         );
+      // Preview pakai three.js lokal dari /vendor/ (bukan CDN) — lihat
+      // lib/studio.ts "VENDOR three.js". Satu-satunya tempat rewrite:
+      // mount() dilewati SEMUA jalur preview (template asli, edit
+      // tersimpan, Video Buatan Saya). Export .html TIDAK lewat sini
+      // (tetap CDN, standalone — via applyEdits/downloadMine).
+      const rewritten = rewriteThreeCdnToLocal(out);
+      if (rewritten.replaced > 0) out = rewritten.html;
       const pv = iframeRef.current;
       if (!pv) return;
       pv.onload = () => {
@@ -1080,7 +1088,7 @@ export default function Studio() {
         if (!bridge || !bridge.ok()) {
           const why = !bridge
             ? ((w && (w as { __stErr?: string }).__stErr) || "bridge tidak terpasang")
-            : "three.js belum termuat — template butuh internet (CDN).";
+            : "three.js belum termuat — file vendor (/vendor/three.min.js) tidak ditemukan.";
           setSkelText("Preview tidak bisa dimulai");
           setSkelWhy(why);
           setStatus("err");
@@ -1732,7 +1740,10 @@ export default function Studio() {
     [activeMineId, toast]
   );
 
-  /** Unduh satu entri sebagai file .html lengkap (setText+setCaps+setShots+setVO+setProps). */
+  /** Unduh satu entri sebagai file .html lengkap (setText+setCaps+setShots+setVO+setProps).
+   *  SENGAJA tetap pakai URL CDN (bukan /vendor/): file hasil unduh harus
+   *  standalone dan jalan di browser normal — lihat lib/studio.ts
+   *  "VENDOR three.js". applyEdits tidak me-rewrite. */
   const downloadMine = useCallback(
     async (entry: MyVideo) => {
       try {

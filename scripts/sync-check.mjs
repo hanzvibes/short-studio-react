@@ -180,6 +180,35 @@ for (const [ex, f] of [['spec-code-pr-kecil.json', 'template-code.html'], ['spec
 
 const bad = results.filter((r) => !r.ok);
 console.log(`\n${results.length - bad.length}/${results.length} template byte-identik lib == mjs (modul + CLI + alias array).`);
+
+// ---- 4. Vendor three.js: rewrite CDN -> /vendor/ untuk preview ----
+// (2026-11-19) Tiap template canonical harus punya 13 script three.js CDN
+// dan rewrite harus menukar ke-13-nya ke /vendor/, tanpa menyentuh font
+// Google dan tanpa mengubah URL lain. File vendor harus ada di
+// public/vendor/ (13 file, nama sama seperti sumber CDN).
+const VENDOR_FILES = ['three.min.js', 'CopyShader.js', 'LuminosityHighPassShader.js', 'BokehShader.js', 'AfterimageShader.js', 'FXAAShader.js', 'EffectComposer.js', 'MaskPass.js', 'ShaderPass.js', 'RenderPass.js', 'BokehPass.js', 'UnrealBloomPass.js', 'AfterimagePass.js'];
+const vendorDir = join(ROOT, 'public', 'vendor');
+for (const f of VENDOR_FILES) {
+  if (!existsSync(join(vendorDir, f))) fail(`vendor hilang: public/vendor/${f}`);
+}
+let vendorOk = 0;
+for (const t of registry) {
+  const html = readFileSync(join(TPL_DIR, t.file), 'utf8');
+  const counted = lib.countCdnThreeScripts(html);
+  if (counted !== 13) fail(`${t.file}: countCdnThreeScripts=${counted}, harus 13`);
+  const rw = lib.rewriteThreeCdnToLocal(html);
+  if (rw.replaced !== 13) fail(`${t.file}: rewrite replaced=${rw.replaced}, harus 13`);
+  if (rw.html.includes('cdnjs.cloudflare.com/ajax/libs/three.js') || rw.html.includes('cdn.jsdelivr.net/npm/three@0.128.0')) fail(`${t.file}: URL CDN three.js masih tersisa sesudah rewrite`);
+  if ((rw.html.match(/\/vendor\//g) || []).length !== 13) fail(`${t.file}: referensi /vendor/ bukan 13`);
+  if (html.includes('fonts.googleapis.com') && !rw.html.includes('fonts.googleapis.com')) fail(`${t.file}: font Google ikut berubah oleh rewrite`);
+  // applyEdits (jalur export/unduh) SENGAJA tidak me-rewrite: hasil export
+  // harus tetap standalone pakai CDN.
+  const spec0 = { file: t.file, title: 'Tes Vendor' };
+  const rExp = lib.applyEdits(html, spec0, 30);
+  if (!rExp.html.includes('cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js')) fail(`${t.file}: applyEdits ikut me-rewrite (export harus tetap CDN)`);
+  vendorOk++;
+}
+console.log(`OK   vendor three.js: ${vendorOk}/${registry.length} template rewrite 13/13 + export tetap CDN`);
 if (bad.length) fail(`${bad.length} template gagal: ${bad.map((r) => r.file).join(', ')}`);
 if (process.exitCode) console.log('sync-check: ADA KEGAGALAN (lihat FAIL di atas)');
 else console.log('sync-check: SEMUA HIJAU');

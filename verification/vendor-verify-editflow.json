@@ -1,0 +1,16 @@
+{
+  "afterEdit": null,
+  "titleInFrame": "Judul Edit Vendorkode siapa yang paling bagus?",
+  "saved": {
+    "found": true
+  },
+  "mineCount": 0,
+  "afterSave": {
+    "ok": true,
+    "len": 30,
+    "canvas": true
+  },
+  "cdnThree": [],
+  "vendorReqs": 26,
+  "errors": []
+}
