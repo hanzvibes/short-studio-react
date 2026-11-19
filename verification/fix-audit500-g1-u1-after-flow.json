@@ -1,0 +1,80 @@
+{
+  "fresh": {
+    "applyDisabled": true,
+    "applyState": "Tidak ada perubahan — ubah teks, caption, shot, atau pengaturan objek untuk mengaktifkan Terapkan.",
+    "titleInFrame": "Claude vs Codexvs Geminisiapa model terbaik?",
+    "editsKeys": [],
+    "editsTitle": null,
+    "mineCount": 0,
+    "mineTitles": []
+  },
+  "afterType": {
+    "applyDisabled": false,
+    "applyState": "Siap diterapkan: 1 teks.",
+    "titleInFrame": "Claude vs Codexvs Geminisiapa model terbaik?",
+    "editsKeys": [],
+    "editsTitle": null,
+    "mineCount": 0,
+    "mineTitles": []
+  },
+  "afterApply": {
+    "applyDisabled": true,
+    "applyState": "Tidak ada perubahan — ubah teks, caption, shot, atau pengaturan objek untuk mengaktifkan Terapkan.",
+    "titleInFrame": "AUDIT G1 U1 TRIOsiapa model terbaik?",
+    "editsKeys": [
+      "template-trio.html"
+    ],
+    "editsTitle": "AUDIT G1 U1 TRIO",
+    "mineCount": 0,
+    "mineTitles": []
+  },
+  "afterSave": {
+    "applyDisabled": true,
+    "applyState": "Tidak ada perubahan — ubah teks, caption, shot, atau pengaturan objek untuk mengaktifkan Terapkan.",
+    "titleInFrame": "AUDIT G1 U1 TRIOsiapa model terbaik?",
+    "editsKeys": [
+      "template-trio.html"
+    ],
+    "editsTitle": "AUDIT G1 U1 TRIO",
+    "mineCount": 1,
+    "mineTitles": [
+      "AUDIT G1 U1 TRIO"
+    ]
+  },
+  "afterReload": {
+    "applyDisabled": true,
+    "applyState": "Tidak ada perubahan — ubah teks, caption, shot, atau pengaturan objek untuk mengaktifkan Terapkan.",
+    "titleInFrame": "AUDIT G1 U1 TRIOsiapa model terbaik?",
+    "editsKeys": [
+      "template-trio.html"
+    ],
+    "editsTitle": "AUDIT G1 U1 TRIO",
+    "mineCount": 1,
+    "mineTitles": [
+      "AUDIT G1 U1 TRIO"
+    ]
+  },
+  "objek": {
+    "errs": [],
+    "applyState": "Tidak ada perubahan — ubah teks, caption, shot, atau pengaturan objek untuk mengaktifkan Terapkan.",
+    "applyDisabled": true,
+    "beats": [
+      {
+        "label": "Waktu mulai debat",
+        "value": "9",
+        "shown": "9.00 detik"
+      },
+      {
+        "label": "Waktu mulai lelah",
+        "value": "20.5",
+        "shown": "20.50 detik"
+      },
+      {
+        "label": "Waktu senang",
+        "value": "26",
+        "shown": "26.00 detik"
+      }
+    ]
+  },
+  "pageErrors": []
+}

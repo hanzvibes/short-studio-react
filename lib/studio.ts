@@ -626,7 +626,7 @@ export type PropAnchor =
   | { t: "mkmon"; index: number }
   | { t: "whole"; name: string }
   | { t: "assign"; name: string }
-  | { t: "const-sites"; name: string; before: string; default: number | number[]; sites: Site[]; also?: ConstRef[]; index?: number; sitesByFile?: Record<string, Site[]> }
+  | { t: "const-sites"; name: string; before: string; default: number | number[]; sites: Site[]; also?: ConstRef[]; index?: number; sitesByFile?: Record<string, Site[]>; defaultByFile?: Record<string, number | number[]> }
   | { t: "assign-sites"; name: string; sites: Site[] }
   | { t: "inject-call"; after: string; text: string; prefix: string; index: number; default: number }
   | { t: "const-line"; name: string; before: string; default: number; after: string; insertText: string; insertAfter: string }
@@ -2892,6 +2892,7 @@ export const PROP_DEFS: PropDef[] = [
       "name": "T_TIRED",
       "before": "function frame(t){",
       "default": 16.5,
+      "defaultByFile": { "template-trio.html": 20.5 },
       "sites": [
         ["*(1-s2(16.5,18))", "*(1-s2(T_TIRED,T_TIRED+1.5))"],
         ["tr=s2(16.5,17.5)", "tr=s2(T_TIRED,T_TIRED+1)"],
@@ -2973,6 +2974,7 @@ export const PROP_DEFS: PropDef[] = [
       "name": "T_JOY",
       "before": "function frame(t){",
       "default": 21,
+      "defaultByFile": { "template-trio.html": 26, "template-rival.html": 24.6 },
       "sites": [
         ["*(1-s2(20.5,21.5))", "*(1-s2(T_JOY-.5,T_JOY+.5))"],
         ["jy=s2(21,22)", "jy=s2(T_JOY,T_JOY+1)"],
@@ -3505,6 +3507,7 @@ export const PROP_DEFS: PropDef[] = [
       "name": "T_DONE",
       "before": "function frame(t){",
       "default": 15,
+      "defaultByFile": { "template-deploy.html": 18.4 },
       "sites": [
         ["*(1-sm(cl((t-14.5)/.5,0,1)))", "*(1-sm(cl((t-(T_DONE-.5))/.5,0,1)))"],
         ["cel=t>=15&&t<19", "cel=t>=T_DONE&&t<T_DONE+4"],
@@ -4079,6 +4082,15 @@ export function parseProps(html: string, file: string): ParsedProp[] {
 function anchorFor(def: PropDef, file: string): PropAnchor {
   return (def.anchorByFile && def.anchorByFile[file]) || def.anchor;
 }
+/** Nilai bawaan anchor const-sites untuk satu file: per-file bila ada
+ *  (defaultByFile), kalau tidak default bersama. Dipakai readProp saat
+ *  konstanta belum ada di template asli — nilai asli tiap template bisa
+ *  beda (mis. beat trio/deploy/rival; U1 audit-500: default bersama
+ *  Versus/typing di luar rentang per-file trio/deploy/rival). */
+function anchorDefault(a: Extract<PropAnchor, { t: "const-sites" }>, file: string): number | number[] {
+  const d = a.defaultByFile?.[file];
+  return d !== undefined ? d : a.default;
+}
 
 /** Satu situs pengganti teks: pasangan [cari, ganti]; tiap sisi boleh
  *  berupa satu string atau daftar alternatif yang berpasangan (alternatif
@@ -4370,14 +4382,15 @@ export function readProp(html: string, def: PropDef, file: string): PropValue | 
     return v !== undefined && Number.isFinite(v) ? v : null;
   }
   if (a.t === "const-sites") {
+    const dv = anchorDefault(a, file);
     if (a.index !== undefined) {
       const arr = findConstArray(html, a.name);
       if (arr) return arr[a.index] !== undefined ? arr[a.index] : 0;
-      const d = Array.isArray(a.default) ? a.default : [a.default];
+      const d = Array.isArray(dv) ? dv : [dv];
       return d[a.index] !== undefined ? d[a.index] : 0;
     }
     const v = findConstNum(html, a.name);
-    return v !== null ? v : (Array.isArray(a.default) ? a.default[0] : a.default);
+    return v !== null ? v : (Array.isArray(dv) ? dv[0] : dv);
   }
   if (a.t === "assign-sites") {
     return findConstNum(html, a.name);

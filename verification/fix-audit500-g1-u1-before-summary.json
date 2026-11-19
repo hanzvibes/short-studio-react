@@ -1,0 +1,153 @@
+{
+  "template-trio": {
+    "ready": true,
+    "fresh": {
+      "ready": true,
+      "applyDisabledFresh": true,
+      "statusText": "Ada 2 error validasi — perbaiki dulu, Terapkan ditahan.",
+      "errCountFresh": 0,
+      "errTextsFresh": [],
+      "loadedTpl": "Belum ada. Edit template apa pun lalu simpan sebagai video baru — template asli tidak pernah diubah."
+    },
+    "objek": {
+      "applyDisabledObjek": true,
+      "statusText": "Ada 2 error validasi — perbaiki dulu, Terapkan ditahan.",
+      "errCountObjek": 4,
+      "errTextsObjek": [
+        "16.5 di bawah batas 18.",
+        "21 di bawah batas 24.",
+        "Waktu mulai lelah: 16.5 di bawah batas 18.",
+        "Waktu senang: 21 di bawah batas 24."
+      ],
+      "beats": [
+        {
+          "label": "Waktu mulai debat",
+          "value": "9",
+          "min": "9",
+          "max": "15",
+          "shown": "9.00 detik"
+        },
+        {
+          "label": "Waktu mulai lelah",
+          "value": "18",
+          "min": "18",
+          "max": "23",
+          "shown": "16.50 detik"
+        },
+        {
+          "label": "Waktu senang",
+          "value": "24",
+          "min": "24",
+          "max": "29",
+          "shown": "21.00 detik"
+        }
+      ],
+      "sliderCount": 3
+    },
+    "pageErrors": []
+  },
+  "template-deploy": {
+    "ready": true,
+    "fresh": {
+      "ready": true,
+      "applyDisabledFresh": true,
+      "statusText": "Ada 1 error validasi — perbaiki dulu, Terapkan ditahan.",
+      "errCountFresh": 0,
+      "errTextsFresh": [],
+      "loadedTpl": "Belum ada. Edit template apa pun lalu simpan sebagai video baru — template asli tidak pernah diubah."
+    },
+    "objek": {
+      "applyDisabledObjek": true,
+      "statusText": "Ada 1 error validasi — perbaiki dulu, Terapkan ditahan.",
+      "errCountObjek": 2,
+      "errTextsObjek": [
+        "15 di bawah batas 16.",
+        "Waktu selesai: 15 di bawah batas 16."
+      ],
+      "beats": [
+        {
+          "label": "Waktu perbaikan",
+          "value": "12.3",
+          "min": "10",
+          "max": "14",
+          "shown": "12.30 detik"
+        },
+        {
+          "label": "Waktu mulai mengetik",
+          "value": "3",
+          "min": "1",
+          "max": "5",
+          "shown": "3.00 detik"
+        },
+        {
+          "label": "Waktu selesai",
+          "value": "16",
+          "min": "16",
+          "max": "21",
+          "shown": "15.00 detik"
+        },
+        {
+          "label": "Waktu panik",
+          "value": "9",
+          "min": "7",
+          "max": "11",
+          "shown": "9.00 detik"
+        }
+      ],
+      "sliderCount": 4
+    },
+    "pageErrors": []
+  },
+  "template-rival": {
+    "ready": true,
+    "fresh": {
+      "ready": true,
+      "applyDisabledFresh": true,
+      "statusText": "Ada 1 error validasi — perbaiki dulu, Terapkan ditahan.",
+      "errCountFresh": 0,
+      "errTextsFresh": [],
+      "loadedTpl": "Belum ada. Edit template apa pun lalu simpan sebagai video baru — template asli tidak pernah diubah."
+    },
+    "objek": {
+      "applyDisabledObjek": true,
+      "statusText": "Ada 1 error validasi — perbaiki dulu, Terapkan ditahan.",
+      "errCountObjek": 2,
+      "errTextsObjek": [
+        "21 di bawah batas 22.",
+        "Waktu senang: 21 di bawah batas 22."
+      ],
+      "beats": [
+        {
+          "label": "Waktu senang",
+          "value": "22",
+          "min": "22",
+          "max": "27",
+          "shown": "21.00 detik"
+        },
+        {
+          "label": "Waktu kuota habis lagi",
+          "value": "31",
+          "min": "27",
+          "max": "32",
+          "shown": "31.00 detik"
+        },
+        {
+          "label": "Waktu waspada",
+          "value": "15.2",
+          "min": "13",
+          "max": "18",
+          "shown": "15.20 detik"
+        },
+        {
+          "label": "Waktu kerja sama",
+          "value": "20.8",
+          "min": "18",
+          "max": "23",
+          "shown": "20.80 detik"
+        }
+      ],
+      "sliderCount": 4
+    },
+    "pageErrors": []
+  }
+}
