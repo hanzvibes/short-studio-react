@@ -2432,7 +2432,13 @@ export const PROP_DEFS = [
       "sites": [
         [
           "const RM=t=>t<2.8?30:Math.max(1,30-Math.floor((t-2.8)*1.4216)),cdS=t=>t>=23.4?'AMAN':'00:'+String(RM(t)).padStart(2,'0');",
-          "const RM=t=>t<T_ALARM?CD0:Math.max(1,CD0-Math.floor((t-T_ALARM)*(CD0-1)/(T_DEFUSE-T_ALARM))),cdS=t=>t>=T_DEFUSE?'AMAN':'00:'+String(RM(t)).padStart(2,'0');"
+          // U3 audit-500: penyebut (T_DEFUSE-T_ALARM-.2) — hitung mundur
+          // mencapai 00:01 tepat 0,2 dtk SEBELUM bom jinak, seperti rumus
+          // asli (29/1.4216 = 20,4 = (23.4-2.8)-0.2; 0,2 = setengah lebar
+          // jendela transisi jinak T_DEFUSE±0.2 di beat.defuse). Tanpa -.2,
+          // RM baru = 1 tepat di T_DEFUSE, saat cdS sudah 'AMAN' — 00:01
+          // mustahil tampil walau T_ALARM sudah benar.
+          "const RM=t=>t<T_ALARM?CD0:Math.max(1,CD0-Math.floor((t-T_ALARM)*(CD0-1)/(T_DEFUSE-T_ALARM-.2))),cdS=t=>t>=T_DEFUSE?'AMAN':'00:'+String(RM(t)).padStart(2,'0');"
         ]
       ],
       "also": [
@@ -3256,6 +3262,13 @@ export const PROP_DEFS = [
       "name": "T_ALARM",
       "before": "function frame(t){",
       "default": 2,
+      // U3 audit-500: alarm asli Bom 2,8 (bukan 2) — dibaca dari literal
+      // template-bomb.html sendiri (baris RM `t<2.8`, komentar hitung
+      // mundur, dan situs `ss(t,2.8,...)`). Default bersama 2 milik
+      // Bug Hunter; tanpa defaultByFile ini, beat.alarm yang diterapkan
+      // sesudah bomb.seconds menimpa T_ALARM 2.8 -> 2 (ensureConst
+      // menulis ulang) dan timer mulai berdetak di t=2,0.
+      "defaultByFile": { "template-bomb.html": 2.8 },
       "sites": [
         ["ss(t,2,3)", "ss(t,T_ALARM,T_ALARM+1)"],
         ["ss(t,2,2.4)", "ss(t,T_ALARM,T_ALARM+.4)"],
