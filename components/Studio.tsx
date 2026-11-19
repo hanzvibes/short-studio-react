@@ -1342,7 +1342,7 @@ export default function Studio() {
   }, [normalize, origProps]);
 
   const openTemplate = useCallback(
-    (t: TemplateEntry) => {
+    (t: TemplateEntry, opts?: { push?: boolean }) => {
       if (cur === t && base) return;
       if (cur && base) {
         setEdits((prev) => {
@@ -1360,13 +1360,26 @@ export default function Studio() {
       setCur(t);
       try {
         localStorage.setItem("ss.last", slug(t));
-        history.replaceState(null, "", "#" + slug(t));
+        // U11: ganti template in-app (drawer/palet/Video Buatan Saya)
+        // menambah entri riwayat (pushState) supaya Back browser kembali
+        // ke template sebelumnya, bukan keluar ke about:blank.
+        // pushState TIDAK memicu hashchange — tidak ada loop dengan
+        // listener hashchange di bawah. Pergantian lewat hashchange
+        // (Back/Forward/ketik manual) memakai replaceState: entrinya
+        // sudah ada, jangan digandakan.
+        if (opts?.push) history.pushState(null, "", "#" + slug(t));
+        else history.replaceState(null, "", "#" + slug(t));
       } catch { /* file:// */ }
       document.title = t.label + " · Short Studio";
       load(t);
     },
     [cur, base, hasChanges, normalize, fields, load, saveCurrentFullEdit, toast]
   );
+
+  /** Cermin sinkron openTemplate (U11): listener hashchange harus selalu
+   *  memanggil versi terbaru (cur/base terbaru) tanpa daftar ulang. */
+  const openTemplateRef = useRef(openTemplate);
+  openTemplateRef.current = openTemplate;
 
   // Restore simpanan (mount saja, sesudah hidrasi): baca ss.edits.v1 +
   // ss.mine.v1 dari localStorage, lalu tandai restored agar init di bawah
@@ -1393,8 +1406,18 @@ export default function Studio() {
       const savedTheme = localStorage.getItem("ss.theme");
       if (savedTheme === "light" || savedTheme === "dark") setTheme(savedTheme, true);
     } catch { /* ignore */ }
-    const want = decodeURIComponent(window.location.hash.slice(1)) || (() => { try { return localStorage.getItem("ss.last") || ""; } catch { return ""; } })();
-    const first = TEMPLATES.find((t) => slug(t) === want) || TEMPLATES[0];
+    const rawHash = (() => { try { return decodeURIComponent(window.location.hash.slice(1)); } catch { return ""; } })();
+    const want = rawHash || (() => { try { return localStorage.getItem("ss.last") || ""; } catch { return ""; } })();
+    const found = TEMPLATES.find((t) => slug(t) === want);
+    const first = found || TEMPLATES[0];
+    // U11: hash tidak dikenal (mis. tautan salah ketik) jangan ditelan
+    // diam-diam — beri tahu pengguna + perbaiki hash ke template yang
+    // dibuka. Hash kosong / ss.last usang tetap fallback diam-diam
+    // (bukan ketikan pengguna, tidak ada yang perlu dijelaskan).
+    if (rawHash && !found) {
+      toast("Template itu tidak ditemukan, dibuka template pertama");
+      try { history.replaceState(null, "", "#" + slug(first)); } catch { /* file:// */ }
+    }
     const narrow = window.innerWidth <= 1180;
     setDrawerOpen(!narrow && (() => { try { return localStorage.getItem("ss.drawer") !== "0"; } catch { return true; } })());
     try {
@@ -1406,6 +1429,30 @@ export default function Studio() {
     load(first);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restored]);
+
+  // U11 — ikuti perubahan hash (ketik manual di address bar, tombol
+  // Back/Forward browser). pushState di openTemplate TIDAK memicu
+  // hashchange, begitu pula replaceState — handler ini tidak pernah
+  // memicu dirinya sendiri (tidak ada loop). Satu hashchange = satu
+  // pergantian: openTemplate no-op bila template yang dituju sudah
+  // terbuka, dan draf kotor tetap disimpan dulu seperti pindah biasa.
+  useEffect(() => {
+    if (!restored) return;
+    const onHash = () => {
+      const want = (() => { try { return decodeURIComponent(window.location.hash.slice(1)); } catch { return ""; } })();
+      if (!want) return; // hash dikosongkan: biarkan template sekarang
+      const t = TEMPLATES.find((x) => slug(x) === want);
+      if (!t) {
+        toast("Template itu tidak ditemukan, dibuka template pertama");
+        try { history.replaceState(null, "", "#" + slug(TEMPLATES[0])); } catch { /* file:// */ }
+        openTemplateRef.current(TEMPLATES[0]);
+        return;
+      }
+      openTemplateRef.current(t);
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, [restored, toast]);
 
   // Persistensi edit per-template (ss.edits.v1). Gate restored: tanpa ini
   // efek mount pertama akan menimpa simpanan lama dengan {} (nilai awal
@@ -1874,7 +1921,7 @@ export default function Studio() {
         setTimeout(() => mount(true), 0);
         return;
       }
-      openTemplate(t);
+      openTemplate(t, { push: true });
     },
     [cur, base, mount, openTemplate, origCaps, origShots, origVO, toast]
   );
@@ -2196,7 +2243,7 @@ export default function Studio() {
       a("Pintasan keyboard", "?", () => setKeysOpen(true)),
     ].filter((x): x is Item => !!x);
     TEMPLATES.forEach((t, i) =>
-      items.push({ g: "Template", label: t.label, hint: String(i + 1) + (cur === t ? " · aktif" : ""), run: () => openTemplate(t) })
+      items.push({ g: "Template", label: t.label, hint: String(i + 1) + (cur === t ? " · aktif" : ""), run: () => openTemplate(t, { push: true }) })
     );
     caps.forEach((c, i) =>
       items.push({ g: "Caption", label: c[2], hint: fmt(c[0]), run: () => selectClip("cap", i, true) })
@@ -2666,7 +2713,7 @@ export default function Studio() {
                 aria-current={cur === t || undefined}
                 style={{ animationDelay: `${n * 14}ms` }}
                 onClick={() => {
-                  openTemplate(t);
+                  openTemplate(t, { push: true });
                   if (window.innerWidth <= 1180) setDrawerOpen(false);
                 }}
               >
