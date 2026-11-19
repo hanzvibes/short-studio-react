@@ -109,8 +109,11 @@ iframe srcdoc (components/Studio.tsx) — file template di disk TIDAK PERNAH diu
   tanpa CSS transition pada elemen yang mengikuti posisi 3D.
 - **VO paralel dengan caps**: `VO[]` satu baris per `caps[]` (indeks sama);
   `vo` di spec harus sepanjang caps akhir. Bila caps diubah dan `vo` tidak
-  diisi, VO literal diperbarui mengikuti teks caps baru (peringatan dicetak);
-  VO turunan (`const VO=caps.map(c=>c[2])`) sudah otomatis mengikuti.
+  diisi, VO literal mengikuti teks caps baru HANYA per baris yang teks
+  VO-nya masih sama dengan teks caption lama (aturan U9/U10 audit-500:
+  baris ejaan fonetik tidak pernah ditimpa; perubahan waktu saja tidak
+  menyentuh VO); VO turunan (`const VO=caps.map(c=>c[2])`) sudah otomatis
+  mengikuti. UI memberi peringatan hanya bila VO memang akan berubah.
   VO eksplisit pada template VO turunan mengubahnya menjadi array literal
   sekali (edit caps berikutnya tetap diikuti aturan auto-follow).
 

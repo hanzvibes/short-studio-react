@@ -201,9 +201,12 @@ Format spec kanonik (dipakai Studio, `apply-edit.mjs`, `export.mjs --edit`):
   "props": { "claude.x": -1.5, "codex.color": "#7b8cff" } }
 ```
 
-- `vo` opsional: bila caps diedit dan `vo` tidak diisi, `VO[i]` := teks caps
-  baru (VO literal diganti; VO turunan `caps.map(c=>c[2])` sudah mengikuti
-  otomatis — UI memberi peringatan ini).
+- `vo` opsional: bila caps diedit dan `vo` tidak diisi, VO literal
+  mengikuti teks caps baru HANYA per baris yang teks VO-nya masih sama
+  dengan teks caption lama (aturan U9/U10: baris ejaan fonetik tidak
+  pernah ditimpa; perubahan waktu saja tidak menyentuh VO). VO turunan
+  `caps.map(c=>c[2])` sudah mengikuti otomatis — UI memberi peringatan
+  hanya bila VO memang akan berubah.
 - `props`: kunci = id prop dari `PROP_DEFS` (`lib/studio.ts`), nilai number,
   `"#rrggbb"`, atau array (prop array — ditulis ulang utuh). Warna aksen juga
   menyinkronkan `CC[i]` (warna bubble). Format kanonik object map; CLI

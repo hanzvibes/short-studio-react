@@ -7,6 +7,7 @@ import {
   applyEdits,
   clamp,
   crossCheckProps,
+  deriveVOFromCaps,
   fmt,
   fmt1,
   fmtTC,
@@ -816,8 +817,8 @@ export default function Studio() {
   const liveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tourShownRef = useRef(false);
   const pendingMineRef = useRef<MyVideo | null>(null);
-  const stateRef = useRef({ cur, fields, def, applied, base, shots, caps, len, muted, playing, draftCaps, draftShots, draftVO, voTouched, voKindState, origCaps, origShots, draftProps });
-  stateRef.current = { cur, fields, def, applied, base, shots, caps, len, muted, playing, draftCaps, draftShots, draftVO, voTouched, voKindState, origCaps, origShots, draftProps };
+  const stateRef = useRef({ cur, fields, def, applied, base, shots, caps, len, muted, playing, draftCaps, draftShots, draftVO, voTouched, voKindState, origCaps, origShots, origVO, appliedCaps, appliedVO, draftProps });
+  stateRef.current = { cur, fields, def, applied, base, shots, caps, len, muted, playing, draftCaps, draftShots, draftVO, voTouched, voKindState, origCaps, origShots, origVO, appliedCaps, appliedVO, draftProps };
   /** Cermin sinkron fullEdits (U5): saveCurrentFullEdit() harus menulis
    *  localStorage SECARA SINKRON dan tahu hasilnya, jadi ia menghitung
    *  `next` dari ref ini (bukan dari updater setState yang baru terlihat
@@ -1128,7 +1129,6 @@ export default function Studio() {
       // teks, lalu caps, shots, VO, dan props — via fungsi yang sama dengan
       // scripts/apply-edit.mjs, supaya hasil unduhan .html identik.
       let out = setText(s.base, changed);
-      const capsChanged = s.origCaps !== null && JSON.stringify(s.draftCaps) !== JSON.stringify(s.origCaps);
       if (s.origCaps !== null && s.draftCaps.length) {
         const r = writeCaps(out, s.draftCaps);
         if (r.ok) out = r.html;
@@ -1137,13 +1137,21 @@ export default function Studio() {
         const r = writeShots(out, s.draftShots);
         if (r.ok) out = r.html;
       }
-      if (s.voTouched && s.draftVO) {
-        const r = writeVO(out, s.draftVO);
-        if (r.ok) out = r.html;
-      } else if (capsChanged && s.voKindState === "literal") {
-        // VO mengikuti teks caption baru (peringatan tampil di tab Caption).
-        const r = writeVO(out, s.draftCaps.map((c) => c[2]));
-        if (r.ok) out = r.html;
+      // U9/U10 (audit-500): VO literal mengikuti teks caption HANYA per
+      // baris yang teks VO-nya masih sama dengan teks caption LAMA
+      // (deriveVOFromCaps) — baris ejaan fonetik tidak pernah ditimpa,
+      // dan perubahan HANYA waktu/pembicara tidak menyentuh VO sama
+      // sekali. Bila VO diedit manual (voTouched), draftVO dipakai utuh.
+      // VO ditulis hanya bila berbeda dari VO asli template (menghindari
+      // tulis ulang yang tidak perlu saat tidak ada baris yang mengikuti).
+      if (s.voKindState === "literal" && s.draftVO && s.origVO) {
+        const next = s.voTouched || !s.appliedCaps
+          ? s.draftVO
+          : deriveVOFromCaps(s.draftVO, s.appliedCaps, s.draftCaps);
+        if (next && JSON.stringify(next) !== JSON.stringify(s.origVO)) {
+          const r = writeVO(out, next);
+          if (r.ok) out = r.html;
+        }
       }
       if (Object.keys(s.draftProps).length) {
         const r = writeProps(out, s.cur.file, s.draftProps);
@@ -1306,14 +1314,23 @@ export default function Studio() {
         if (p.available && p.value !== undefined) origP[p.def.id] = p.value;
       });
       setOrigProps(origP);
-      setDraftCaps(mineOverride?.caps ?? fe?.caps ?? pc ?? []);
+      const draftCapsInit = mineOverride?.caps ?? fe?.caps ?? pc ?? [];
+      // U9/U10: VO awal BUKAN selalu VO asli template — bila ada edit
+      // caption tersimpan (tanpa VO manual), VO diturunkan dari caption
+      // itu per baris (deriveVOFromCaps), supaya field Narasi tidak
+      // menampilkan VO basi sesudah reload (S2/N2) dan mount() menulis
+      // VO yang sama dengan sebelum reload. VO manual (fe.vo /
+      // mineOverride.vo) tetap menang apa adanya.
+      const draftVOInit = mineOverride?.vo ?? fe?.vo ??
+        (vk === "literal" && pv && pc ? deriveVOFromCaps(pv, pc, draftCapsInit) : pv ?? null);
+      setDraftCaps(draftCapsInit);
       setDraftShots(mineOverride?.shots ?? fe?.shots ?? ps ?? []);
-      setDraftVO(mineOverride?.vo ?? fe?.vo ?? pv ?? null);
+      setDraftVO(draftVOInit);
       // Edit tersimpan / Video Buatan Saya sudah diterapkan ke preview
       // saat load (via mount), jadi baseline "diterapkan" = draft awal.
-      setAppliedCaps(mineOverride?.caps ?? fe?.caps ?? pc ?? []);
+      setAppliedCaps(draftCapsInit.map((c) => [...c] as Cap));
       setAppliedShots(mineOverride?.shots ?? fe?.shots ?? ps ?? []);
-      setAppliedVO(mineOverride?.vo ?? fe?.vo ?? pv ?? null);
+      setAppliedVO(draftVOInit ? [...draftVOInit] : null);
       setVoTouched(!!(mineOverride?.vo || fe?.voTouched));
       const dp = mineOverride?.props ?? fe?.props ?? origP;
       setDraftProps(dp);
@@ -1602,12 +1619,41 @@ export default function Studio() {
   const activeObjKey = selObj && objList.some((o) => o.key === selObj) ? selObj : objList[0]?.key ?? null;
   const activeObj = objList.find((o) => o.key === activeObjKey) ?? null;
   const allWarnings = useMemo(() => [...capVal.warnings, ...shotVal.warnings, ...propVal.warnings], [capVal, shotVal, propVal]);
+  /** Teks caption yang berubah tapi belum diterapkan (vs baseline
+   *  terakhir diterapkan) — hanya teks `c[2]`, bukan waktu/pembicara
+   *  (U9: perubahan waktu saja tidak menyentuh VO, jadi tidak ada
+   *  peringatan untuknya). */
+  const capTextPending = useMemo(
+    () => appliedCaps !== null && draftCaps.some((c, i) => appliedCaps[i] && c[2] !== appliedCaps[i][2]),
+    [draftCaps, appliedCaps]
+  );
+  /** Benar-benar ada baris VO yang akan mengikuti teks caption baru
+   *  (U9/U10, per baris: VO[i] masih sama dengan caption lama). */
+  const voWillFollow = useMemo(
+    () =>
+      !voTouched &&
+      voKindState === "literal" &&
+      !!draftVO &&
+      !!appliedCaps &&
+      draftCaps.some((c, i) => draftVO[i] === appliedCaps[i]?.[2] && c[2] !== appliedCaps[i][2]),
+    [voTouched, voKindState, draftVO, appliedCaps, draftCaps]
+  );
+  /** Peringatan VO — BENAR di tiap keadaan (U9): tampil hanya bila VO
+   *  memang akan berubah (teks caption berubah + ada baris yang
+   *  mengikuti); bila teks berubah tapi tidak ada baris yang mengikuti
+   *  (ejaan fonetik sudah terpisah), tampil penjelasan yang jujur bahwa
+   *  suara tidak berubah; perubahan waktu saja = tidak ada catatan. */
   const voFollowNote = useMemo(() => {
-    if (!capsPending || voTouched) return "";
-    if (voKindState === "literal") return "Suara akan mengikuti teks caption baru saat diterapkan.";
-    if (voKindState === "derived") return "Suara di video ini mengikuti caption otomatis.";
+    if (voTouched) return "";
+    if (voKindState === "derived") return capTextPending ? "Suara di video ini mengikuti caption otomatis." : "";
+    if (voKindState !== "literal") return "";
+    if (voWillFollow) return "Suara akan mengikuti teks caption baru saat diterapkan.";
+    if (capTextPending) return "Suara di video ini ditulis terpisah dari caption — teks caption tidak mengubah suara. Ubah suara di seksi Narasi.";
     return "";
-  }, [capsPending, voTouched, voKindState]);
+  }, [voTouched, voKindState, capTextPending, voWillFollow]);
+  /** Gaya peringatan: kuning hanya bila suara benar-benar akan berubah;
+   *  penjelasan "terpisah" + info turunan tampil sebagai hint netral. */
+  const voFollowWarn = voWillFollow;
   const anyDirty = useMemo(
     () => dirty || capsPending || shotsPending || propsPending || voPending,
     [dirty, capsPending, shotsPending, propsPending, voPending]
@@ -1668,9 +1714,27 @@ export default function Studio() {
     // deps) dan di-deep-copy supaya edit berikutnya tidak mengotori
     // baseline lewat referensi bersama.
     const s = stateRef.current;
-    setAppliedCaps(s.draftCaps.map((c) => [...c] as Cap));
+    // U9/U10: VO efektif sesudah caption diterapkan (per baris — hanya
+    // baris yang teks VO-nya masih sama dengan caption lama yang ikut;
+    // baris fonetik + perubahan waktu saja tidak mengubah VO). draftVO
+    // DISINKRONKAN ke VO efektif supaya field Narasi menampilkan VO yang
+    // baru, bukan yang lama (S2/N2) — edit Narasi berikutnya tidak lagi
+    // menulis VO basi yang menimpa balik VO turunan caption. VO manual
+    // (voTouched) tidak disentuh. stateRef ditulis sinkron karena
+    // mount() di bawah jalan di tick yang sama (sebelum re-render).
+    const newAppliedCaps = s.draftCaps.map((c) => [...c] as Cap);
+    const effVO = s.voKindState === "literal" && s.draftVO && !s.voTouched && s.appliedCaps
+      ? deriveVOFromCaps(s.draftVO, s.appliedCaps, s.draftCaps)
+      : s.draftVO ? [...s.draftVO] : null;
+    if (effVO && JSON.stringify(effVO) !== JSON.stringify(s.draftVO)) {
+      setDraftVO(effVO);
+      stateRef.current.draftVO = effVO;
+    }
+    setAppliedCaps(newAppliedCaps);
+    stateRef.current.appliedCaps = newAppliedCaps;
     setAppliedShots(s.draftShots.map((x) => [x[0], [...x[1]], [...x[2]]] as Shot));
-    setAppliedVO(s.draftVO ? [...s.draftVO] : null);
+    setAppliedVO(effVO ? [...effVO] : null);
+    stateRef.current.appliedVO = effVO ? [...effVO] : null;
     setAppliedProps(JSON.parse(JSON.stringify(s.draftProps)) as PropValues);
     setEdits((prev) => {
       const next = { ...prev };
@@ -1738,14 +1802,19 @@ export default function Studio() {
     if (!origCaps) return;
     const caps = origCaps.map((c) => [...c] as Cap);
     const vo = origVO ? [...origVO] : null;
+    const applied = caps.map((c) => [...c] as Cap);
     setDraftCaps(caps);
     setDraftVO(vo);
     setVoTouched(false);
-    setAppliedCaps(caps.map((c) => [...c] as Cap));
+    setAppliedCaps(applied);
     setAppliedVO(vo ? [...vo] : null);
     stateRef.current.draftCaps = caps;
     stateRef.current.draftVO = vo;
     stateRef.current.voTouched = false;
+    // U9/U10: baseline "diterapkan" ikut kembali ke asli (termasuk VO) —
+    // mount() sesudah reset membandingkan VO ke baseline ini.
+    stateRef.current.appliedCaps = applied;
+    stateRef.current.appliedVO = vo ? [...vo] : null;
     const ok = saveCurrentFullEdit();
     setTimeout(() => mount(true), 0);
     toast(ok ? "Caption dikembalikan ke asli" : ERR_RESET, !ok);
@@ -1926,15 +1995,21 @@ export default function Studio() {
         const n = { title: entry.title, sub: entry.sub, end: entry.end };
         setFields(n);
         setApplied(n);
-        setDraftCaps(entry.caps ?? origCaps ?? []);
+        const capsInit = entry.caps ?? origCaps ?? [];
+        // U9/U10: entri tanpa VO manual menurunkan VO dari captionnya
+        // (deriveVOFromCaps) — sama seperti load(); kalau tidak, field
+        // Narasi menampilkan VO asli padahal captionnya sudah diubah.
+        const voInit = entry.vo ??
+          (origVO && origCaps ? deriveVOFromCaps(origVO, origCaps, capsInit) : origVO ?? null);
+        setDraftCaps(capsInit);
         setDraftShots(entry.shots ?? origShots ?? []);
-        setDraftVO(entry.vo ?? origVO ?? null);
+        setDraftVO(voInit);
         // Entri mine langsung diterapkan ke preview (mount di bawah),
         // jadi baseline "diterapkan" ikut disinkronkan — kalau tidak,
         // tombol Terapkan akan tampak aktif padahal tidak ada yang pending.
-        setAppliedCaps(entry.caps ?? origCaps ?? []);
+        setAppliedCaps(capsInit.map((c) => [...c] as Cap));
         setAppliedShots(entry.shots ?? origShots ?? []);
-        setAppliedVO(entry.vo ?? origVO ?? null);
+        setAppliedVO(voInit ? [...voInit] : null);
         setVoTouched(!!entry.vo);
         if (entry.props) {
           setDraftProps(entry.props);
@@ -3331,7 +3406,7 @@ export default function Studio() {
                       <p className="hint">Template ini tidak punya suara.</p>
                     )}
                     {voTouched && <p className="valid-warn">Suara diedit manual — tidak lagi mengikuti teks caption.</p>}
-                    {voFollowNote && <p className={voKindState === "literal" ? "valid-warn" : "hint"}>{voFollowNote}</p>}
+                    {voFollowNote && <p className={voFollowWarn ? "valid-warn" : "hint"}>{voFollowNote}</p>}
                   </div>
                 </details>
                 {capVal.errors.map((e, k) => <p key={k} className="valid-err">{e}</p>)}

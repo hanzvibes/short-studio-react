@@ -17,12 +17,16 @@
 //       — tetap diterima; duplikat id = error.
 //   Koordinator menyelaraskan keduanya 2026-11-17 (dulu kanoniknya array);
 //   CLI dan lib menerima keduanya dengan hasil yang sama.
-// - "vo" opsional: bila caps diedit dan vo tidak diisi, VO[i] := teks caps
-//   baru (VO literal diganti + peringatan dicetak; VO turunan
-//   `caps.map(c=>c[2])` mengikuti otomatis). Bila "vo" diisi pada template
-//   VO turunan, ekspresi turunan diganti array literal SEKALI (setVO) —
-//   edit caps berikutnya tetap diikuti lewat aturan auto-follow. Panjang vo
-//   harus == jumlah caps akhir (divalidasi keras di CLI).
+// - "vo" opsional: bila caps diedit dan vo tidak diisi, VO mengikuti teks
+//   caps baru HANYA per baris yang teks VO-nya masih sama dengan teks
+//   caption lama (deriveVOFromCaps, aturan U9/U10 audit-500) — baris
+//   yang ejaannya sudah disesuaikan tangan (ejaan fonetik VO literal)
+//   tidak pernah ditimpa, dan perubahan HANYA waktu/pembicara tidak
+//   menyentuh VO sama sekali. VO turunan `caps.map(c=>c[2])` mengikuti
+//   otomatis. Bila "vo" diisi pada template VO turunan, ekspresi turunan
+//   diganti array literal SEKALI (setVO) — edit caps berikutnya tetap
+//   diikuti lewat aturan auto-follow. Panjang vo harus == jumlah caps
+//   akhir (divalidasi keras di CLI).
 // - "caps"/"shots"/"vo" MENGGANTIKAN SELURUH array di template (bukan patch
 //   per baris): selalu tulis array lengkap. Arity caps mengikuti template
 //   (3 = [t0,t1,teks], 4 = [t0,t1,teks,speaker]); arity salah = error.
@@ -34,7 +38,7 @@
 // lib/studio.ts (TypeScript). Bila mengubah salah satu, ubah yang lain:
 // setText (regex sama dengan setText() di lib/studio.ts), bracket-matching
 // findArraySpan, parser literal parseJsArray, setCaps/setShots/setVO,
-// setProps + PROP_DEFS, validateCaps/validateShots/validateProps, applyEdits.
+// deriveVOFromCaps, setProps + PROP_DEFS, validateCaps/validateShots/validateProps, applyEdits.
 // PERBEDAAN YANG DISENGAJA (dicatat supaya koordinator bisa menyelaraskan):
 //  1. CLI ini memberlakukan kata/detik > 2.5 sebagai ERROR (tugas skill:
 //     validasi gagal keras = exit non-zero, tanpa output). validateCaps()
@@ -314,6 +318,14 @@ export function setVO(html, vo) {
     return { html: html.slice(0, i) + voToJs(vo) + html.slice(j), ok: true };
   }
   return { html, ok: false };
+}
+
+// VO efektif sesudah teks caption berubah — aturan U9/U10 (audit-500).
+// Cermin deriveVOFromCaps() di lib/studio.ts (harus SAMA persis —
+// node scripts/sync-check.mjs membandingkan byte hasil keduanya).
+export function deriveVOFromCaps(vo, oldCaps, newCaps) {
+  if (!vo || vo.length !== oldCaps.length || vo.length !== newCaps.length) return vo;
+  return vo.map((v, i) => (v === oldCaps[i][2] ? newCaps[i][2] : v));
 }
 
 // ---------- setText (mirror lib/studio.ts; + nl() khusus CLI) ----------
@@ -4454,11 +4466,25 @@ export function applyEdits(html, spec, len) {
   } else if (spec.caps) {
     const kind = voKind(h);
     if (kind === 'literal') {
-      const r = setVO(h, spec.caps.map((c) => c[2]));
-      h = r.html;
-      if (r.ok) { applied.push('vo'); voFollowedCaps = true; } else failed.push('vo');
+      // U9/U10 (cermin lib/studio.ts): hanya baris yang teks VO-nya masih
+      // sama dengan teks caption lama yang mengikuti teks baru; baris
+      // ejaan fonetik tidak ditimpa, dan perubahan HANYA waktu/pembicara
+      // tidak menyentuh VO sama sekali. "Lama" dibaca dari `html` ASLI —
+      // `h` sudah berisi caps baru (setCaps di atas).
+      const oldCaps = parseCaps(html);
+      const oldVO = parseVO(html);
+      const next = oldCaps && oldVO ? deriveVOFromCaps(oldVO, oldCaps, spec.caps) : null;
+      if (next && JSON.stringify(next) !== JSON.stringify(oldVO)) {
+        const r = setVO(h, next);
+        h = r.html;
+        if (r.ok) { applied.push('vo'); voFollowedCaps = true; } else failed.push('vo');
+      }
     } else if (kind === 'derived') {
-      voFollowedCaps = true;
+      // VO=caps.map(c=>c[2]) — sudah mengikuti caps otomatis; flag hanya
+      // bila ada TEKS caption yang berubah (waktu saja tidak mengubah VO).
+      // "Lama" dibaca dari `html` asli (lihat komentar di atas).
+      const oldCaps = parseCaps(html);
+      voFollowedCaps = !!oldCaps && oldCaps.some((c, i) => spec.caps[i] && spec.caps[i][2] !== c[2]);
     }
   }
   if (spec.props && Object.keys(normalizeProps(spec.props)).length) {
@@ -4832,7 +4858,7 @@ if (isMain) {
   if (!r.ok) fail(`gagal menerapkan: ${r.failed.join(', ')}`);
   let out = r.html;
   if (r.voFollowedCaps && spec.caps && spec.vo === undefined) {
-    if (voKind(src) === 'literal') warn('caps berubah tapi spec tidak berisi "vo": VO[] diperbarui mengikuti teks caps baru.');
+    if (voKind(src) === 'literal') warn('caps berubah tapi spec tidak berisi "vo": VO[] diperbarui mengikuti teks caps baru (hanya baris yang teks suaranya masih sama dengan caption lama; baris ejaan fonetik tidak berubah).');
     else note('VO turunan (caps.map): otomatis mengikuti teks caps baru.');
   }
   // ---- validasi silang pada HTML akhir ----
