@@ -621,6 +621,38 @@ export default function Studio() {
   const [cmdSel, setCmdSel] = useState(0);
   const [expOpen, setExpOpen] = useState(false);
   const [keysOpen, setKeysOpen] = useState(false);
+  // ---------- tumpukan lapis dialog/palet (G8/U12) ----------
+  // Urutan = urutan DIBUKA (bukan prioritas tetap): Esc menutup dari atas
+  // (LIFO) dan z-index mengikuti urutan ini, jadi lapis yang terakhir
+  // dibuka selalu paling atas — palet tidak lagi selalu menutupi dialog.
+  // Disinkronkan dari keempat boolean (satu efek, bukan di tiap situs
+  // pemanggil) supaya urutan buka yang sebenarnya selalu terjaga.
+  const layerStackRef = useRef<string[]>([]);
+  const [layerStack, setLayerStack] = useState<string[]>([]);
+  useEffect(() => {
+    const want = [
+      expOpen ? "exp" : null,
+      saveMineOpen ? "save" : null,
+      keysOpen ? "keys" : null,
+      cmdOpen ? "cmd" : null,
+    ].filter((x): x is string => x !== null);
+    const prev = layerStackRef.current;
+    const next = [...prev.filter((id) => want.includes(id)), ...want.filter((id) => !prev.includes(id))];
+    if (next.length !== prev.length || next.some((id, i) => id !== prev[i])) {
+      layerStackRef.current = next;
+      setLayerStack(next);
+    }
+  }, [expOpen, saveMineOpen, keysOpen, cmdOpen]);
+  // Tutup lapis teratas; false bila tidak ada lapis terbuka.
+  const closeTopLayer = useCallback(() => {
+    const top = layerStackRef.current[layerStackRef.current.length - 1];
+    if (!top) return false;
+    if (top === "exp") setExpOpen(false);
+    else if (top === "save") setSaveMineOpen(false);
+    else if (top === "keys") setKeysOpen(false);
+    else if (top === "cmd") setCmdOpen(false);
+    return true;
+  }, []);
   const [tourStep, setTourStep] = useState<number | null>(null);
   const [tourRect, setTourRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const [tourCardPos, setTourCardPos] = useState<{ x: number; y: number }>({ x: 20, y: 20 });
@@ -2467,11 +2499,10 @@ export default function Studio() {
         (tag === "input" && (el as HTMLInputElement).type !== "range" && (el as HTMLInputElement).type !== "checkbox") ||
         tag === "textarea" ||
         tag === "select";
-      if (typing) {
-        if (e.key === "Escape") el.blur();
-        return;
-      }
-      if (cmdOpen || expOpen || keysOpen) return;
+      // G8/U13 + N5: Ctrl/⌘+K SELALU toggle palet — bahkan saat mengetik
+      // di input atau saat dialog terbuka. Dulu handler return dini bila
+      // cmdOpen/expOpen/keysOpen, jadi Ctrl+K mati total saat Ekspor
+      // terbuka dan tidak bisa menutup palet yang sedang terbuka.
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setCmdOpen((v) => !v);
@@ -2479,6 +2510,24 @@ export default function Studio() {
         setCmdSel(0);
         return;
       }
+      // G8/U12 + U13 + V16: Esc menutup SATU lapis teratas dulu (LIFO):
+      // dialog/palet (urutan dibuka) → pencarian drawer (bersihkan dulu
+      // bila ada teks) → blur input → sheet → fokus viewer → drawer.
+      // Dulu Esc hanya blur saat mengetik dan return dini saat dialog
+      // terbuka, jadi ketiga <dialog> tak bisa ditutup Esc sama sekali
+      // dan palet hanya bisa ditutup Esc bila fokus di dalam inputnya.
+      if (e.key === "Escape") {
+        e.preventDefault();
+        if (closeTopLayer()) return;
+        const inDrawerSearch = typing && (el as HTMLInputElement).type === "search" && !!el.closest("#drawer");
+        if (inDrawerSearch && q) { setQ(""); el.blur(); return; }
+        if (typing) { el.blur(); return; }
+        if (sheetModeRef.current && sheetSnapRef.current !== "closed") stepDownSnap();
+        else if (focusView) setFocusView(false);
+        else if (drawerOpen) setDrawerOpen(false);
+        return;
+      }
+      if (typing) return;
       if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
         e.preventDefault();
         applyAll();
@@ -2538,16 +2587,10 @@ export default function Studio() {
         setCmdQuery("");
         setCmdSel(0);
       } else if (k === "d" || k === "D") setTheme(theme === "dark" ? "light" : "dark");
-      else if (k === "Escape") {
-        // Urutan tutup: sheet dulu, baru fokus viewer, lalu drawer.
-        if (sheetModeRef.current && sheetSnapRef.current !== "closed") stepDownSnap();
-        else if (focusView) setFocusView(false);
-        else if (window.innerWidth <= 1180) setDrawerOpen(false);
-      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [tourStep, cmdOpen, expOpen, keysOpen, applyAll, goTo, currentTime, toggle, activeShot, shots, caps, selectClip, toggleMute, fitTimeline, toast, cur, load, theme, setTheme, len, endTour, focusView, stepDownSnap, closeSheet, drawerOpen]);
+  }, [tourStep, q, closeTopLayer, applyAll, goTo, currentTime, toggle, activeShot, shots, caps, selectClip, toggleMute, fitTimeline, toast, cur, load, theme, setTheme, len, endTour, focusView, stepDownSnap, closeSheet, drawerOpen]);
 
   // ---------- derived ----------
   const filtered = useMemo(() => {
@@ -2693,9 +2736,6 @@ export default function Studio() {
                   if (e.key === "Enter") {
                     const first = document.querySelector<HTMLElement>("#tplList .tpl");
                     first?.click();
-                  } else if (e.key === "Escape") {
-                    setQ("");
-                    (e.target as HTMLInputElement).blur();
                   }
                 }}
               />
@@ -3417,7 +3457,7 @@ export default function Studio() {
       </footer>
 
       {expOpen && (
-        <dialog open className="dlg" aria-labelledby="expH" onClick={(e) => { if (e.target === e.currentTarget) setExpOpen(false); }}>
+        <dialog open className="dlg" aria-labelledby="expH" style={{ zIndex: 80 + Math.max(0, layerStack.indexOf("exp")) }} onClick={(e) => { if (e.target === e.currentTarget) setExpOpen(false); }}>
           <div className="dlg-h"><h2 id="expH">Ekspor MP4</h2><button className="tb-icon" data-close aria-label="Tutup" onClick={() => setExpOpen(false)}><svg viewBox="0 0 24 24"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z" /></svg></button></div>
           <div className="dlg-b">
             <div className="seg" role="group" aria-label="Frame rate">
@@ -3451,7 +3491,7 @@ export default function Studio() {
       )}
 
       {saveMineOpen && (
-        <dialog open className="dlg" aria-labelledby="mineH" onClick={(e) => { if (e.target === e.currentTarget) setSaveMineOpen(false); }}>
+        <dialog open className="dlg" aria-labelledby="mineH" style={{ zIndex: 80 + Math.max(0, layerStack.indexOf("save")) }} onClick={(e) => { if (e.target === e.currentTarget) setSaveMineOpen(false); }}>
           <div className="dlg-h"><h2 id="mineH">{activeMineEntry ? "Perbarui video ini" : "Simpan sebagai video baru"}</h2><button className="tb-icon" data-close aria-label="Tutup" onClick={() => setSaveMineOpen(false)}><svg viewBox="0 0 24 24"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z" /></svg></button></div>
           <div className="dlg-b">
             <label className="field">
@@ -3474,7 +3514,7 @@ export default function Studio() {
       )}
 
       {keysOpen && (
-        <dialog open aria-labelledby="keysH" onClick={(e) => { if (e.target === e.currentTarget) setKeysOpen(false); }}>
+        <dialog open aria-labelledby="keysH" style={{ zIndex: 80 + Math.max(0, layerStack.indexOf("keys")) }} onClick={(e) => { if (e.target === e.currentTarget) setKeysOpen(false); }}>
           <div className="dlg-h"><h2 id="keysH">Pintasan keyboard</h2><button className="tb-icon" data-close aria-label="Tutup" onClick={() => setKeysOpen(false)}><svg viewBox="0 0 24 24"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z" /></svg></button></div>
           <div className="dlg-b">
             <dl className="keys">
@@ -3503,7 +3543,7 @@ export default function Studio() {
       )}
 
       {cmdOpen && (
-        <dialog open className="cmd" aria-label="Palet perintah" onClick={(e) => { if (e.target === e.currentTarget) setCmdOpen(false); }}>
+        <dialog open className="cmd" aria-label="Palet perintah" style={{ zIndex: 80 + Math.max(0, layerStack.indexOf("cmd")) }} onClick={(e) => { if (e.target === e.currentTarget) setCmdOpen(false); }}>
           <div className="cmd-in">
             <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" /></svg>
             <input
@@ -3521,7 +3561,7 @@ export default function Studio() {
                   e.preventDefault();
                   const it = cmdShown[cmdSel];
                   if (it) { setCmdOpen(false); setTimeout(it.run, 0); }
-                } else if (e.key === "Escape") setCmdOpen(false);
+                }
               }}
             />
           </div>

@@ -398,7 +398,12 @@ dialog[open]{animation:pop .18s var(--ease)}
 .keys dt{display:flex;gap:3px;flex-wrap:wrap}
 .keys dd{margin:0;color:var(--ink-2)}
 .tour-again{align-self:flex-start}
-.cmd{width:min(560px,calc(100vw - 20px))}
+/* G8/N6: palet butuh padding — dulu padding:0 dan ketiga anaknya mengisi
+   dialog penuh persis, jadi tidak ada satu piksel pun backdrop yang bisa
+   diklik dan handler onClick (e.target === e.currentTarget) adalah dead
+   code. Cincin 10px ini (warna --panel, sama dengan dialog) adalah area
+   klik yang menutup palet; box-sizing:border-box menjaga ukuran luar. */
+.cmd{width:min(560px,calc(100vw - 20px));padding:10px}
 .cmd-in{display:flex;align-items:center;gap:8px;height:44px;padding:0 12px;border-bottom:1px solid var(--line);background:var(--panel-2)}
 .cmd-in svg{width:15px;height:15px;color:var(--faint);flex:0 0 auto}
 .cmd-in input{flex:1;border:0;background:none;outline:none;font-size:13px;min-width:0;color:var(--ink)}
